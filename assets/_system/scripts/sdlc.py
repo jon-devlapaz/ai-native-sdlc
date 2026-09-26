@@ -299,6 +299,12 @@ def status(args):
     print('Deployment: not inferred from local review files; consult the deployment system.')
 
 
+TOOL_ACCEPTABLE_CODES = {
+    'tink': frozenset({0}),
+    'tink-route': frozenset({0, 1}),  # 0 = routed/installed, 1 = unrouted (no skill needed)
+}
+
+
 def skills(args):
     # All cooperating worktrees on this host share a mutation lock. This is not
     # a security boundary and cannot coordinate tools invoked outside this wrapper.
@@ -314,9 +320,9 @@ def skills(args):
     lock = Path(tempfile.gettempdir()) / f'sdlc-tink-{os.getuid()}.lock'
     with locked(lock):
         result = subprocess.run([args.tool, *arguments], cwd=ROOT)
-        failed = result.returncode not in (0, 1) if args.tool == 'tink-route' else result.returncode != 0
-        if failed:
+        if result.returncode not in TOOL_ACCEPTABLE_CODES.get(args.tool, frozenset({0})):
             raise ValueError(f'{args.tool} failed with exit code {result.returncode}; inspect partial state before retrying.')
+        return result.returncode
 
 
 def main():
@@ -346,11 +352,11 @@ def main():
     skill.add_argument('arguments', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     try:
-        {'new': create, 'status': status, 'decide': decide, 'verify': verify, 'lock-tests': lock_tests, 'skills': skills}[args.command](args)
+        code = {'new': create, 'status': status, 'decide': decide, 'verify': verify, 'lock-tests': lock_tests, 'skills': skills}[args.command](args)
     except (ValueError, OSError, KeyError, subprocess.SubprocessError) as error:
         print(f'Error: {error}', file=sys.stderr)
         return 1
-    return 0
+    return code if isinstance(code, int) else 0
 
 
 if __name__ == '__main__':

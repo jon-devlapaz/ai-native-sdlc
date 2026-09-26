@@ -187,26 +187,23 @@ class WorkflowTests(unittest.TestCase):
                 workflow.skills(args)
 
     def test_skill_wrapper_tink_route_exit_codes(self):
+        cases = [
+            ('tink-route', 0, False),
+            ('tink-route', 1, False),
+            ('tink-route', 2, True),
+            ('tink', 0, False),
+            ('tink', 1, True),
+        ]
         with patch.object(workflow, 'ROOT', self.root), patch.object(workflow.tempfile, 'gettempdir', return_value=str(self.root)):
-            args_route = SimpleNamespace(tool='tink-route', arguments=['need'])
-            with patch.object(workflow.subprocess, 'run', return_value=subprocess.CompletedProcess(['tink-route', 'need'], 1)):
-                workflow.skills(args_route)
-
-            with patch.object(workflow.subprocess, 'run', return_value=subprocess.CompletedProcess(['tink-route', 'need'], 0)):
-                workflow.skills(args_route)
-
-            with patch.object(workflow.subprocess, 'run', return_value=subprocess.CompletedProcess(['tink-route', 'need'], 2)):
-                with self.assertRaises(ValueError):
-                    workflow.skills(args_route)
-
-            args_tink = SimpleNamespace(tool='tink', arguments=['skill', 'check'])
-            with patch.object(workflow.subprocess, 'run', return_value=subprocess.CompletedProcess(['tink', 'skill', 'check'], 1)):
-                with self.assertRaises(ValueError):
-                    workflow.skills(args_tink)
-
-            with patch.object(workflow.subprocess, 'run', return_value=subprocess.CompletedProcess(['tink', 'skill', 'check'], 0)):
-                workflow.skills(args_tink)
-
+            for tool, returncode, should_raise in cases:
+                with self.subTest(tool=tool, returncode=returncode, should_raise=should_raise):
+                    args = SimpleNamespace(tool=tool, arguments=['check'])
+                    with patch.object(workflow.subprocess, 'run', return_value=subprocess.CompletedProcess([tool, 'check'], returncode)):
+                        if should_raise:
+                            with self.assertRaises(ValueError):
+                                workflow.skills(args)
+                        else:
+                            self.assertEqual(workflow.skills(args), returncode)
 
     def test_candidate_mutation_during_check(self):
         self.create_ready()
