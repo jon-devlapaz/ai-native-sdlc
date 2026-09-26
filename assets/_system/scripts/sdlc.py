@@ -314,7 +314,8 @@ def skills(args):
     lock = Path(tempfile.gettempdir()) / f'sdlc-tink-{os.getuid()}.lock'
     with locked(lock):
         result = subprocess.run([args.tool, *arguments], cwd=ROOT)
-        if result.returncode:
+        failed = result.returncode not in (0, 1) if args.tool == 'tink-route' else result.returncode != 0
+        if failed:
             raise ValueError(f'{args.tool} failed with exit code {result.returncode}; inspect partial state before retrying.')
 
 

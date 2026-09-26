@@ -186,6 +186,28 @@ class WorkflowTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 workflow.skills(args)
 
+    def test_skill_wrapper_tink_route_exit_codes(self):
+        with patch.object(workflow, 'ROOT', self.root), patch.object(workflow.tempfile, 'gettempdir', return_value=str(self.root)):
+            args_route = SimpleNamespace(tool='tink-route', arguments=['need'])
+            with patch.object(workflow.subprocess, 'run', return_value=subprocess.CompletedProcess(['tink-route', 'need'], 1)):
+                workflow.skills(args_route)
+
+            with patch.object(workflow.subprocess, 'run', return_value=subprocess.CompletedProcess(['tink-route', 'need'], 0)):
+                workflow.skills(args_route)
+
+            with patch.object(workflow.subprocess, 'run', return_value=subprocess.CompletedProcess(['tink-route', 'need'], 2)):
+                with self.assertRaises(ValueError):
+                    workflow.skills(args_route)
+
+            args_tink = SimpleNamespace(tool='tink', arguments=['skill', 'check'])
+            with patch.object(workflow.subprocess, 'run', return_value=subprocess.CompletedProcess(['tink', 'skill', 'check'], 1)):
+                with self.assertRaises(ValueError):
+                    workflow.skills(args_tink)
+
+            with patch.object(workflow.subprocess, 'run', return_value=subprocess.CompletedProcess(['tink', 'skill', 'check'], 0)):
+                workflow.skills(args_tink)
+
+
     def test_candidate_mutation_during_check(self):
         self.create_ready()
         self.config([{'argv': ['python3', '-c', 'from pathlib import Path; Path("code.py").write_text("modified")'], 'timeout_seconds': 2}])
