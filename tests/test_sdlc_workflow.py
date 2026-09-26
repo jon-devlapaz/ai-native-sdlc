@@ -1,4 +1,4 @@
-import hashlib
+import fcntl
 import importlib.util
 import json
 import os
@@ -177,40 +177,39 @@ class WorkflowTests(unittest.TestCase):
         receipt = json.loads((self.root / 'runs/example/04-test/output/verification.json').read_text())
         self.assertEqual(receipt['result'], 'failed')
 
-    def test_skill_wrapper_lock_and_symlink(self):
-        args = SimpleNamespace(tool='tink', arguments=['skill', 'check'])
-        with patch.object(workflow, 'ROOT', self.root), patch.object(workflow.tempfile, 'gettempdir', return_value=str(self.root)):
-            repo_id = hashlib.sha256(str(self.root.resolve()).encode()).hexdigest()[:12]
-            lock = self.root / f'sdlc-tink-{os.getuid()}-{repo_id}.lock'
-            lock.mkdir()
-            (lock / 'pid').write_text(str(os.getpid()))
+    def test_locked_times_out_while_flock_held(self):
+        lock = Path(self.temp.name) / 'contention.lock'
+        lock.touch()
+        fd = os.open(lock, os.O_CREAT | os.O_RDWR)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
             start = time.monotonic()
             with self.assertRaises(ValueError):
-                with workflow.locked(lock, timeout=0.2, poll_interval=0.02):
+                with workflow.locked(lock, timeout=0.1, poll_interval=0.02):
                     pass
-            self.assertGreaterEqual(time.monotonic() - start, 0.2)
-            with patch.object(workflow.subprocess, 'run', side_effect=AssertionError('must not run under active lock')):
-                with self.assertRaises(ValueError):
-                    workflow.skills(args)
-            shutil.rmtree(lock, ignore_errors=True)
-            dead = 1 << 30
+            self.assertGreaterEqual(time.monotonic() - start, 0.1)
+        finally:
             try:
-                os.kill(dead, 0)
-                dead += 1
-            except ProcessLookupError:
-                pass
+                fcntl.flock(fd, fcntl.LOCK_UN)
             except OSError:
-                dead += 1
-            lock.mkdir()
-            (lock / 'pid').write_text(str(dead))
-            with workflow.locked(lock, timeout=1.0, poll_interval=0.02):
-                self.assertEqual((lock / 'pid').read_text().strip(), str(os.getpid()))
-            self.assertFalse(lock.exists())
-            lock.mkdir()
-            (lock / 'pid').write_text(str(dead))
-            with patch.object(workflow.subprocess, 'run', return_value=subprocess.CompletedProcess(['tink', 'skill', 'check'], 0)):
-                workflow.skills(args)
-            self.assertFalse(lock.exists())
+                pass
+            os.close(fd)
+
+    def test_locked_acquires_after_flock_released(self):
+        lock = Path(self.temp.name) / 'release.lock'
+        lock.touch()
+        fd = os.open(lock, os.O_CREAT | os.O_RDWR)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+        with workflow.locked(lock, timeout=1.0, poll_interval=0.02):
+            pass
+
+    def test_skill_wrapper_rejects_symlink(self):
+        args = SimpleNamespace(tool='tink', arguments=['skill', 'check'])
+        with patch.object(workflow, 'ROOT', self.root), patch.object(workflow.tempfile, 'gettempdir', return_value=str(self.root)):
             (self.root / '.agents').symlink_to(self.root, target_is_directory=True)
             with self.assertRaises(ValueError):
                 workflow.skills(args)

@@ -2,6 +2,7 @@
 """Local workflow evidence. Human identity and release authority belong to the forge."""
 import argparse
 import contextlib
+import fcntl
 import hashlib
 import json
 import os
@@ -56,40 +57,25 @@ def run_path(slug):
 
 @contextlib.contextmanager
 def locked(path, timeout=5.0, poll_interval=0.05):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(path, os.O_CREAT | os.O_RDWR)
     start = time.monotonic()
-    pid_file = path / 'pid'
-    while True:
-        try:
-            path.mkdir()
-            pid_file.write_text(str(os.getpid()))
-            break
-        except FileExistsError:
-            try:
-                pid = int(pid_file.read_text().strip())
-                try:
-                    os.kill(pid, 0)
-                except ProcessLookupError:
-                    pid_file.unlink(missing_ok=True)
-                    try:
-                        path.rmdir()
-                    except OSError:
-                        pass
-                    continue
-                except OSError:
-                    pass
-            except (OSError, ValueError):
-                pass
-            if time.monotonic() - start >= timeout:
-                raise ValueError(f'Busy or interrupted operation: {path}. Confirm no writer remains before removing this lock.')
-            time.sleep(poll_interval)
     try:
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except (BlockingIOError, OSError):
+                if time.monotonic() - start >= timeout:
+                    raise ValueError(f'Busy or interrupted operation: {path}. Confirm no writer remains before removing this lock.')
+                time.sleep(poll_interval)
         yield
     finally:
-        pid_file.unlink(missing_ok=True)
         try:
-            path.rmdir()
-        except FileNotFoundError:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        except OSError:
             pass
+        os.close(fd)
 
 
 def require_run(path):
@@ -347,7 +333,7 @@ def skills(args):
         arguments.pop(0)
     if not arguments:
         raise ValueError('Supply the authorized Tink/router operation.')
-    repo_id = hashlib.sha256(str(ROOT.resolve()).encode()).hexdigest()[:12]
+    repo_id = digest(str(ROOT.resolve()).encode())[:12]
     lock = Path(tempfile.gettempdir()) / f'sdlc-tink-{os.getuid()}-{repo_id}.lock'
     with locked(lock):
         result = subprocess.run([args.tool, *arguments], cwd=ROOT)
