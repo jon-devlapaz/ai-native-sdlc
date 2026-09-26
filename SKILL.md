@@ -20,7 +20,7 @@ python3 <skill-directory>/scripts/init.py <target-checkout> --check
 python3 <skill-directory>/scripts/init.py <target-checkout>
 ```
 
-The pparse reports collisions; the installer refuses unmanaged, partial, modified,
+The preparse reports collisions; the installer refuses unmanaged, partial, modified,
 or different-version scaffolds instead of overwriting them. There is no `--force`.
 The installed operator guide is `_system/SDLC.md`. Verification starts unconfigured;
 populate it with real project checks before relying on passing receipts. Repeated

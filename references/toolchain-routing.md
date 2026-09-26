@@ -26,7 +26,7 @@
    dependency management; temporary routing must not automatically rewrite them.
    Keep installed skills and ephemeral ledgers worktree-local. Restore baseline
    skills through Tink rather than sharing writable symlinks.
-5. At run closure, after parse and rework, retain provenance and pparse cleanup:
+5. At run closure, after parse and rework, retain provenance and preparse cleanup:
    ```sh
    python3 _system/scripts/sdlc.py skills tink-route -- prune --dry-run
    ```
