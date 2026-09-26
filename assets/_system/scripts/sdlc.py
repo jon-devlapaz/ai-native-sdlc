@@ -57,18 +57,18 @@ def run_path(slug):
     return path
 
 
-def tink_lock_path(root=None):
-    resolved = (ROOT if root is None else root).resolve()
-    repo_id = digest(str(resolved).encode())[:12]
+def tink_lock_path(root=ROOT):
+    repo_id = digest(str(root.resolve()).encode())[:12]
     return Path(tempfile.gettempdir()) / f'sdlc-tink-{os.getuid()}-{repo_id}.lock'
 
 
-def _open_lock_file(path):
+@contextlib.contextmanager
+def locked(path, timeout=5.0, poll_interval=0.05):
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
         fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     except OSError as error:
-        if error.errno == errno.ELOOP or (error.errno == errno.EEXIST and path.is_symlink()):
+        if error.errno == errno.ELOOP or path.is_symlink():
             raise ValueError(f'Lock path must not be a symlink: {path}') from error
         if error.errno == errno.EISDIR:
             raise ValueError(f'Stale directory lock found at {path}. Remove it to allow file flock.') from error
@@ -77,12 +77,6 @@ def _open_lock_file(path):
     if not stat.S_ISREG(st.st_mode):
         os.close(fd)
         raise ValueError(f'Lock path must be a regular file: {path}')
-    return fd
-
-
-@contextlib.contextmanager
-def locked(path, timeout=5.0, poll_interval=0.05):
-    fd = _open_lock_file(path)
     with open(fd, 'a+b', closefd=True) as handle:
         start = time.monotonic()
         while True:

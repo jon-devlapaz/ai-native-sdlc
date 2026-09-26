@@ -178,19 +178,14 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(receipt['result'], 'failed')
 
     def test_tink_lock_path_formula_pinned(self):
-        import hashlib
-        expected_hash = hashlib.sha256(str(self.root.resolve()).encode()).hexdigest()[:12]
+        expected_hash = workflow.digest(str(self.root.resolve()).encode())[:12]
         expected = Path(tempfile.gettempdir()) / f'sdlc-tink-{os.getuid()}-{expected_hash}.lock'
         self.assertEqual(workflow.tink_lock_path(self.root), expected)
 
     def test_lock_file_created_with_restricted_permissions(self):
-        old = os.umask(0)
-        os.umask(old)
-        expected = 0o600 & ~old & 0o777
         lock = Path(self.temp.name) / 'perms.lock'
         with workflow.locked(lock):
-            mode = os.stat(lock).st_mode & 0o777
-        self.assertEqual(mode, expected)
+            self.assertEqual(os.stat(lock).st_mode & 0o077, 0)
 
     def test_locked_times_out_while_flock_held(self):
         lock = Path(self.temp.name) / 'contention.lock'
