@@ -203,7 +203,12 @@ class WorkflowTests(unittest.TestCase):
                             with self.assertRaises(ValueError):
                                 workflow.skills(args)
                         else:
-                            self.assertEqual(workflow.skills(args), returncode)
+                            self.assertIsNone(workflow.skills(args))
+
+            argv = ['sdlc.py', 'skills', 'tink-route', '--', 'check']
+            run = subprocess.CompletedProcess(['tink-route', 'check'], 1)
+            with patch.object(workflow.subprocess, 'run', return_value=run), patch.object(workflow.sys, 'argv', argv):
+                self.assertEqual(workflow.main(), 0)
 
     def test_candidate_mutation_during_check(self):
         self.create_ready()

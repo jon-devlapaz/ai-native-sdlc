@@ -320,9 +320,8 @@ def skills(args):
     lock = Path(tempfile.gettempdir()) / f'sdlc-tink-{os.getuid()}.lock'
     with locked(lock):
         result = subprocess.run([args.tool, *arguments], cwd=ROOT)
-        if result.returncode not in TOOL_ACCEPTABLE_CODES.get(args.tool, frozenset({0})):
+        if result.returncode not in TOOL_ACCEPTABLE_CODES[args.tool]:
             raise ValueError(f'{args.tool} failed with exit code {result.returncode}; inspect partial state before retrying.')
-        return result.returncode
 
 
 def main():
@@ -352,11 +351,11 @@ def main():
     skill.add_argument('arguments', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     try:
-        code = {'new': create, 'status': status, 'decide': decide, 'verify': verify, 'lock-tests': lock_tests, 'skills': skills}[args.command](args)
+        {'new': create, 'status': status, 'decide': decide, 'verify': verify, 'lock-tests': lock_tests, 'skills': skills}[args.command](args)
     except (ValueError, OSError, KeyError, subprocess.SubprocessError) as error:
         print(f'Error: {error}', file=sys.stderr)
         return 1
-    return code if isinstance(code, int) else 0
+    return 0
 
 
 if __name__ == '__main__':
