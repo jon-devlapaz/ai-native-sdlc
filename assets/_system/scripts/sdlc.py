@@ -299,13 +299,17 @@ def status(args):
     print('Deployment: not inferred from local review files; consult the deployment system.')
 
 
+# tink-route uses exit 1 to mean "no skill applies" — a successful no-op, not a failure.
 TOOL_ACCEPTABLE_CODES = {
-    'tink': frozenset({0}),
-    'tink-route': frozenset({0, 1}),  # 0 = routed/installed, 1 = unrouted (no skill needed)
+    'tink': (0,),
+    'tink-route': (0, 1),
 }
 
 
 def skills(args):
+    allowed = TOOL_ACCEPTABLE_CODES.get(args.tool)
+    if allowed is None:
+        raise ValueError(f'Unknown skill tool: {args.tool!r}')
     # All cooperating worktrees on this host share a mutation lock. This is not
     # a security boundary and cannot coordinate tools invoked outside this wrapper.
     for relative in ['.agents', '.agents/skills', '.tink']:
@@ -320,7 +324,7 @@ def skills(args):
     lock = Path(tempfile.gettempdir()) / f'sdlc-tink-{os.getuid()}.lock'
     with locked(lock):
         result = subprocess.run([args.tool, *arguments], cwd=ROOT)
-        if result.returncode not in TOOL_ACCEPTABLE_CODES[args.tool]:
+        if result.returncode not in allowed:
             raise ValueError(f'{args.tool} failed with exit code {result.returncode}; inspect partial state before retrying.')
 
 
@@ -347,7 +351,7 @@ def main():
     baseline.add_argument('--source', required=True)
     baseline.add_argument('--failure-evidence', required=True)
     skill = commands.add_parser('skills')
-    skill.add_argument('tool', choices=['tink', 'tink-route'])
+    skill.add_argument('tool', choices=list(TOOL_ACCEPTABLE_CODES))
     skill.add_argument('arguments', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     try:

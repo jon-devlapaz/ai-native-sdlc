@@ -186,17 +186,17 @@ class WorkflowTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 workflow.skills(args)
 
-    def test_skill_wrapper_tink_route_exit_codes(self):
+    def test_skill_wrapper_tool_exit_codes(self):
         cases = [
+            ('tink', 0, False),
+            ('tink', 1, True),
             ('tink-route', 0, False),
             ('tink-route', 1, False),
             ('tink-route', 2, True),
-            ('tink', 0, False),
-            ('tink', 1, True),
         ]
         with patch.object(workflow, 'ROOT', self.root), patch.object(workflow.tempfile, 'gettempdir', return_value=str(self.root)):
             for tool, returncode, should_raise in cases:
-                with self.subTest(tool=tool, returncode=returncode, should_raise=should_raise):
+                with self.subTest(tool=tool, returncode=returncode):
                     args = SimpleNamespace(tool=tool, arguments=['check'])
                     with patch.object(workflow.subprocess, 'run', return_value=subprocess.CompletedProcess([tool, 'check'], returncode)):
                         if should_raise:
@@ -204,11 +204,17 @@ class WorkflowTests(unittest.TestCase):
                                 workflow.skills(args)
                         else:
                             self.assertIsNone(workflow.skills(args))
+            with self.subTest(tool='unknown-tool'):
+                args = SimpleNamespace(tool='unknown-tool', arguments=['check'])
+                with patch.object(workflow.subprocess, 'run', return_value=subprocess.CompletedProcess(['unknown-tool', 'check'], 0)):
+                    with self.assertRaises(ValueError):
+                        workflow.skills(args)
 
-            argv = ['sdlc.py', 'skills', 'tink-route', '--', 'check']
-            run = subprocess.CompletedProcess(['tink-route', 'check'], 1)
-            with patch.object(workflow.subprocess, 'run', return_value=run), patch.object(workflow.sys, 'argv', argv):
-                self.assertEqual(workflow.main(), 0)
+    def test_skill_wrapper_cli_normalizes_unrouted(self):
+        argv = ['sdlc.py', 'skills', 'tink-route', '--', 'check']
+        run = subprocess.CompletedProcess(['tink-route', 'check'], 1)
+        with patch.object(workflow, 'ROOT', self.root), patch.object(workflow.tempfile, 'gettempdir', return_value=str(self.root)), patch.object(workflow.subprocess, 'run', return_value=run), patch.object(workflow.sys, 'argv', argv):
+            self.assertEqual(workflow.main(), 0)
 
     def test_candidate_mutation_during_check(self):
         self.create_ready()
