@@ -3,10 +3,10 @@
 1. Load mandatory policy skills deterministically. Reuse an appropriate loaded
    skill before routing. Route only a real capability gap; ranking is evidence of
    fit, not trust or installation authority.
-2. Consult `manage-tink` for authorized Tink operations. Use the workspace wrapper
-   consistently for cooperating operations:
+2. Constrain routing by the active SDLC stage using `--stage` or `--skillset`. Use the
+   workspace wrapper consistently for cooperating operations:
    ```sh
-   python3 _system/scripts/sdlc.py skills tink-route -- --json "<capability needed>"
+   python3 _system/scripts/sdlc.py skills tink-route -- --stage <stage> --json "<capability needed>"
    ```
    Check the installed CLI's help and returned schema; do not assume a fixed
    activation JSON structure. The `sdlc.py skills ... --` prefix is this scaffold's
@@ -15,7 +15,7 @@
    routing leaves the capability unresolved; do not install an arbitrary fallback.
 3. Install only within existing user authority. When authorized:
    ```sh
-   python3 _system/scripts/sdlc.py skills tink-route -- -i --ephemeral --json "<capability needed>"
+   python3 _system/scripts/sdlc.py skills tink-route -- --stage <stage> -i --ephemeral --json "<capability needed>"
    python3 _system/scripts/sdlc.py skills tink -- skill check
    ```
    Inspect failures for partial writes before retrying. Validate the selected
