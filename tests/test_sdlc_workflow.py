@@ -1,9 +1,12 @@
+import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 from types import SimpleNamespace
@@ -177,11 +180,37 @@ class WorkflowTests(unittest.TestCase):
     def test_skill_wrapper_lock_and_symlink(self):
         args = SimpleNamespace(tool='tink', arguments=['skill', 'check'])
         with patch.object(workflow, 'ROOT', self.root), patch.object(workflow.tempfile, 'gettempdir', return_value=str(self.root)):
-            lock = self.root / f'sdlc-tink-{workflow.os.getuid()}.lock'
+            repo_id = hashlib.sha256(str(self.root.resolve()).encode()).hexdigest()[:12]
+            lock = self.root / f'sdlc-tink-{os.getuid()}-{repo_id}.lock'
             lock.mkdir()
+            (lock / 'pid').write_text(str(os.getpid()))
+            start = time.monotonic()
             with self.assertRaises(ValueError):
+                with workflow.locked(lock, timeout=0.2, poll_interval=0.02):
+                    pass
+            self.assertGreaterEqual(time.monotonic() - start, 0.2)
+            with patch.object(workflow.subprocess, 'run', side_effect=AssertionError('must not run under active lock')):
+                with self.assertRaises(ValueError):
+                    workflow.skills(args)
+            shutil.rmtree(lock, ignore_errors=True)
+            dead = 1 << 30
+            try:
+                os.kill(dead, 0)
+                dead += 1
+            except ProcessLookupError:
+                pass
+            except OSError:
+                dead += 1
+            lock.mkdir()
+            (lock / 'pid').write_text(str(dead))
+            with workflow.locked(lock, timeout=1.0, poll_interval=0.02):
+                self.assertEqual((lock / 'pid').read_text().strip(), str(os.getpid()))
+            self.assertFalse(lock.exists())
+            lock.mkdir()
+            (lock / 'pid').write_text(str(dead))
+            with patch.object(workflow.subprocess, 'run', return_value=subprocess.CompletedProcess(['tink', 'skill', 'check'], 0)):
                 workflow.skills(args)
-            lock.rmdir()
+            self.assertFalse(lock.exists())
             (self.root / '.agents').symlink_to(self.root, target_is_directory=True)
             with self.assertRaises(ValueError):
                 workflow.skills(args)

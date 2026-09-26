@@ -55,15 +55,41 @@ def run_path(slug):
 
 
 @contextlib.contextmanager
-def locked(path):
-    try:
-        path.mkdir()
-    except FileExistsError:
-        raise ValueError(f'Busy or interrupted operation: {path}. Confirm no writer remains before removing this lock.')
+def locked(path, timeout=5.0, poll_interval=0.05):
+    start = time.monotonic()
+    pid_file = path / 'pid'
+    while True:
+        try:
+            path.mkdir()
+            pid_file.write_text(str(os.getpid()))
+            break
+        except FileExistsError:
+            try:
+                pid = int(pid_file.read_text().strip())
+                try:
+                    os.kill(pid, 0)
+                except ProcessLookupError:
+                    pid_file.unlink(missing_ok=True)
+                    try:
+                        path.rmdir()
+                    except OSError:
+                        pass
+                    continue
+                except OSError:
+                    pass
+            except (OSError, ValueError):
+                pass
+            if time.monotonic() - start >= timeout:
+                raise ValueError(f'Busy or interrupted operation: {path}. Confirm no writer remains before removing this lock.')
+            time.sleep(poll_interval)
     try:
         yield
     finally:
-        path.rmdir()
+        pid_file.unlink(missing_ok=True)
+        try:
+            path.rmdir()
+        except FileNotFoundError:
+            pass
 
 
 def require_run(path):
@@ -321,7 +347,8 @@ def skills(args):
         arguments.pop(0)
     if not arguments:
         raise ValueError('Supply the authorized Tink/router operation.')
-    lock = Path(tempfile.gettempdir()) / f'sdlc-tink-{os.getuid()}.lock'
+    repo_id = hashlib.sha256(str(ROOT.resolve()).encode()).hexdigest()[:12]
+    lock = Path(tempfile.gettempdir()) / f'sdlc-tink-{os.getuid()}-{repo_id}.lock'
     with locked(lock):
         result = subprocess.run([args.tool, *arguments], cwd=ROOT)
         if result.returncode not in allowed:
