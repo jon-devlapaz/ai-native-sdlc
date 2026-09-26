@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -56,14 +57,27 @@ def run_path(slug):
     return path
 
 
+def tink_lock_path(root=ROOT):
+    repo_id = digest(str(root.resolve()).encode())[:12]
+    return Path(tempfile.gettempdir()) / f'sdlc-tink-{os.getuid()}-{repo_id}.lock'
+
+
 @contextlib.contextmanager
 def locked(path, timeout=5.0, poll_interval=0.05):
-    if path.is_dir():
-        raise ValueError(f'Stale directory lock found at {path}. Remove it to allow file flock.')
-    if path.is_symlink():
-        raise ValueError(f'Lock path must not be a symlink: {path}')
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, 'a+b') as handle:
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW)
+    except OSError as error:
+        if error.errno == errno.ELOOP or path.is_symlink():
+            raise ValueError(f'Lock path must not be a symlink: {path}')
+        if error.errno == errno.EISDIR:
+            raise ValueError(f'Stale directory lock found at {path}. Remove it to allow file flock.')
+        raise
+    st = os.fstat(fd)
+    if not stat.S_ISREG(st.st_mode):
+        os.close(fd)
+        raise ValueError(f'Lock path must be a regular file: {path}')
+    with open(fd, 'a+b', closefd=True) as handle:
         start = time.monotonic()
         while True:
             try:
@@ -333,8 +347,7 @@ def skills(args):
         arguments.pop(0)
     if not arguments:
         raise ValueError('Supply the authorized Tink/router operation.')
-    repo_id = digest(str(ROOT.resolve()).encode())[:12]
-    lock = Path(tempfile.gettempdir()) / f'sdlc-tink-{os.getuid()}-{repo_id}.lock'
+    lock = tink_lock_path(ROOT)
     with locked(lock):
         result = subprocess.run([args.tool, *arguments], cwd=ROOT)
         if result.returncode not in allowed:

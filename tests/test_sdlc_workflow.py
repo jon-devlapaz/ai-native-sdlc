@@ -196,8 +196,8 @@ class WorkflowTests(unittest.TestCase):
             os.close(fd)
 
     def test_skills_under_flock_fails_without_running(self):
-        repo_id = workflow.digest(str(self.root.resolve()).encode())[:12]
-        lock = self.root / f'sdlc-tink-{os.getuid()}-{repo_id}.lock'
+        with patch.object(workflow.tempfile, 'gettempdir', return_value=str(self.root)):
+            lock = workflow.tink_lock_path(self.root)
         lock.touch()
         fd = os.open(lock, os.O_CREAT | os.O_RDWR)
         try:
