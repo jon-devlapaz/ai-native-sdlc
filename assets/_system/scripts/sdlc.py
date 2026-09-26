@@ -68,7 +68,7 @@ def locked(path, timeout=5.0, poll_interval=0.05):
     try:
         fd = os.open(path, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
     except OSError as error:
-        if error.errno == errno.ELOOP or path.is_symlink():
+        if error.errno == errno.ELOOP:
             raise ValueError(f'Lock path must not be a symlink: {path}') from error
         if error.errno == errno.EISDIR:
             raise ValueError(f'Stale directory lock found at {path}. Remove it to allow file flock.') from error

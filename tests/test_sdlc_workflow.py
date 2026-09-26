@@ -1,4 +1,5 @@
 import fcntl
+import hashlib
 import importlib.util
 import json
 import os
@@ -178,14 +179,18 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(receipt['result'], 'failed')
 
     def test_tink_lock_path_formula_pinned(self):
-        expected_hash = workflow.digest(str(self.root.resolve()).encode())[:12]
+        expected_hash = hashlib.sha256(str(self.root.resolve()).encode()).hexdigest()[:12]
         expected = Path(tempfile.gettempdir()) / f'sdlc-tink-{os.getuid()}-{expected_hash}.lock'
         self.assertEqual(workflow.tink_lock_path(self.root), expected)
 
     def test_lock_file_created_with_restricted_permissions(self):
         lock = Path(self.temp.name) / 'perms.lock'
-        with workflow.locked(lock):
-            self.assertEqual(os.stat(lock).st_mode & 0o077, 0)
+        old_umask = os.umask(0o022)
+        try:
+            with workflow.locked(lock):
+                self.assertEqual(os.stat(lock).st_mode & 0o777, 0o600 & ~0o022)
+        finally:
+            os.umask(old_umask)
 
     def test_locked_times_out_while_flock_held(self):
         lock = Path(self.temp.name) / 'contention.lock'
