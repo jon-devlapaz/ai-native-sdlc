@@ -2,6 +2,7 @@
 """Local workflow evidence. Human identity and release authority belong to the forge."""
 import argparse
 import contextlib
+import errno
 import fcntl
 import hashlib
 import json
@@ -57,25 +58,24 @@ def run_path(slug):
 
 @contextlib.contextmanager
 def locked(path, timeout=5.0, poll_interval=0.05):
+    if path.is_dir():
+        raise ValueError(f'Stale directory lock found at {path}. Remove it to allow file flock.')
+    if path.is_symlink():
+        raise ValueError(f'Lock path must not be a symlink: {path}')
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_CREAT | os.O_RDWR)
-    start = time.monotonic()
-    try:
+    with open(path, 'a+b') as handle:
+        start = time.monotonic()
         while True:
             try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                 break
-            except (BlockingIOError, OSError):
+            except OSError as error:
+                if error.errno not in (errno.EAGAIN, errno.EACCES):
+                    raise
                 if time.monotonic() - start >= timeout:
                     raise ValueError(f'Busy or interrupted operation: {path}. Confirm no writer remains before removing this lock.')
                 time.sleep(poll_interval)
         yield
-    finally:
-        try:
-            fcntl.flock(fd, fcntl.LOCK_UN)
-        except OSError:
-            pass
-        os.close(fd)
 
 
 def require_run(path):

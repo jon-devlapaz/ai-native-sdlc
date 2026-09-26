@@ -195,6 +195,44 @@ class WorkflowTests(unittest.TestCase):
                 pass
             os.close(fd)
 
+    def test_skills_under_flock_fails_without_running(self):
+        repo_id = workflow.digest(str(self.root.resolve()).encode())[:12]
+        lock = self.root / f'sdlc-tink-{os.getuid()}-{repo_id}.lock'
+        lock.touch()
+        fd = os.open(lock, os.O_CREAT | os.O_RDWR)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            args = SimpleNamespace(tool='tink', arguments=['skill', 'check'])
+            with patch.object(workflow, 'ROOT', self.root), patch.object(workflow.tempfile, 'gettempdir', return_value=str(self.root)):
+                with patch.object(workflow.subprocess, 'run', side_effect=AssertionError('subprocess must not run')) as run_mock:
+                    with self.assertRaises(ValueError):
+                        workflow.skills(args)
+                    run_mock.assert_not_called()
+        finally:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            except OSError:
+                pass
+            os.close(fd)
+
+    def test_locked_rejects_stale_directory(self):
+        lock = Path(self.temp.name) / 'stale-dir.lock'
+        lock.mkdir()
+        with self.assertRaisesRegex(ValueError, 'Stale directory lock'):
+            with workflow.locked(lock):
+                pass
+
+    def test_locked_rejects_symlink(self):
+        target = Path(self.temp.name) / 'real.lock'
+        target.touch()
+        link = Path(self.temp.name) / 'link.lock'
+        if link.exists() or link.is_symlink():
+            link.unlink()
+        link.symlink_to(target)
+        with self.assertRaisesRegex(ValueError, 'must not be a symlink'):
+            with workflow.locked(link):
+                pass
+
     def test_locked_acquires_after_flock_released(self):
         lock = Path(self.temp.name) / 'release.lock'
         lock.touch()
