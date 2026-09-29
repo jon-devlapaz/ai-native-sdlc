@@ -1,14 +1,14 @@
 {
-  "version": "1.1.0",
+  "version": "1.1.1",
   "files": {
     "_shared/REVIEW.md": "5f3c11271887d9e1a87d213dc99150d573fa16c85bd7c460c35df2df4b1b959b",
     "_shared/brief-template.md": "3a4eeec70672ea41333c948c656ec5f0a5eb3dd10f1e656dbae9ef2834c68121",
     "_shared/intent-template.md": "93eebf7467c4a1e76b02e1da8629d28be4218c199739c88f51e58914a8d5d403",
     "_shared/plan-template.md": "fe93363211dcc70b73843b0fa7827f8f9ca7b26e185db7a6b6e9d2adf5a42c00",
     "_shared/spec-template.md": "d1f8f2bbd9f39f8e1a6ba114eb763cbffde69b7564b701c7a3677ae7abbaa4d3",
-    "_system/SDLC.md": "d951c31f3326a2ce7de098358f3d35ab6ffe1343c1e2df4e6d6a71f18733b571",
+    "_system/SDLC.md": "c7fe490b4f837b1e8d1ea8ce9674e9d819168d0f9abfa08a51b69bc3eed9f2a3",
     "_system/scripts/new-run.sh": "5cefd13d71d3ad1f4dfdceb8ed85c2ac6f07ff4798f722df91c4d705305a260b",
-    "_system/scripts/sdlc.py": "596558eec146a0737146ccb51f9bb0805f49755aa585b5f360b4a83336fdee7e",
+    "_system/scripts/sdlc.py": "c1ba807cc3894171d0829ad86b636cf8827e693fd2be82af7ed0a3bdb62a46c1",
     "_system/scripts/status.sh": "220b50bfca4d1dd6fcf786a9c834b295a3a8740efa8074a0846c8ad12a1a3c31",
     "_system/scripts/verify.sh": "ef2e22f7fd5a30ee4cbe54cc9eb4b08a093e5603a02f9bbf2b35d7784c10cc02",
     "_system/verification.json": "1308d67c7c43c1a8f5c90cde99a69e217a7fa7c553cece572ecf3228b50fa937",

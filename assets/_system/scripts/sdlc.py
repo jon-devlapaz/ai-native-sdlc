@@ -313,7 +313,8 @@ def decide(args):
         if args.stage not in stages(path):
             raise ValueError('Light runs use stage 3 for their combined definition gate.')
         if args.decision == 'approved' and args.stage == 3 and load_checklist(path) == []:
-            raise ValueError('Define at least one checklist item before approval.')
+            raise ValueError(f'Define at least one checklist item before approval. Edit runs/{args.run}/checklist.json '
+                             '(each item needs id, description, verify; optional check).')
         if args.decision == 'approved':
             for stage in stages(path):
                 if stage < args.stage and gate(path, stage) != 'approved':
@@ -325,11 +326,17 @@ def decide(args):
     print('Recorded local review receipt. Release approval must be independently authenticated by the forge.')
 
 
+def describe(error):
+    """Error text plus any pointer to the check output attached where the check ran."""
+    return f"{error}{getattr(error, 'sdlc_hint', '')}"
+
+
 def verify(args):
     path = run_path(args.run)
     require_run(path)
     with locked(path / '.writer-lock'):
         output = path / '04-test/output'
+        log_hint = f' (output: {(output / "test-log.md").relative_to(ROOT)})'
         output.mkdir(parents=True, exist_ok=True)
         receipt = output / 'verification.json'
         write_json(receipt, {'result': 'running'})
@@ -345,10 +352,15 @@ def verify(args):
                 for check in checks:
                     log.write(f"\n$ {json.dumps(check['argv'])}\n")
                     log.flush()
-                    result = subprocess.run(check['argv'], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
-                                            timeout=check['timeout_seconds'])
+                    try:
+                        result = subprocess.run(check['argv'], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
+                                                timeout=check['timeout_seconds'])
+                    except (subprocess.TimeoutExpired, OSError) as error:
+                        log.write(f'{type(error).__name__}: {error}\n')
+                        error.sdlc_hint = log_hint
+                        raise
                     if result.returncode:
-                        raise ValueError(f"Check failed ({result.returncode}): {check['argv']}")
+                        raise ValueError(f"Check failed ({result.returncode}): {check['argv']}{log_hint}")
                 for item in items or []:
                     if 'check' not in item:
                         continue
@@ -360,9 +372,9 @@ def verify(args):
                                                 timeout=check['timeout_seconds'])
                     except (subprocess.TimeoutExpired, OSError) as error:
                         log.write(f'{type(error).__name__}: {error}\n')
-                        raise ValueError(f"Checklist check failed: {item['id']}") from error
+                        raise ValueError(f"Checklist check failed: {item['id']}{log_hint}") from error
                     if result.returncode:
-                        raise ValueError(f"Checklist check failed: {item['id']}")
+                        raise ValueError(f"Checklist check failed: {item['id']}{log_hint}")
             if before != evidence_inputs(path):
                 raise ValueError('Candidate or inputs changed during verification; rerun against stable inputs.')
             ready(path)
@@ -372,11 +384,12 @@ def verify(args):
                 attested = [item['id'] for item in items if 'check' not in item]
                 missing = [i for i in attested if marked.get(i, {}).get('result') != 'passed']
                 if missing:
-                    raise ValueError(f"Checklist incomplete: {', '.join(missing)}")
+                    raise ValueError(f"Checklist incomplete: {', '.join(missing)} "
+                                     f'(mark them with: sdlc.py mark {args.run} <id> passed --evidence "...")')
                 proof = {'checklist_items': {item['id']: 'proven' if 'check' in item else 'attested' for item in items}}
             write_json(receipt, {'result': 'passed', **before, **proof, 'log': digest((output / 'test-log.md').read_bytes())})
         except Exception as error:
-            write_json(receipt, {'result': 'failed', 'error': str(error)})
+            write_json(receipt, {'result': 'failed', 'error': describe(error)})
             raise
     print('Configured checks passed for the recorded candidate. Human release review remains required.')
 
@@ -410,9 +423,11 @@ def mark(args):
         if items is None:
             raise ValueError('Run has no checklist.json (legacy run); nothing to mark.')
         if args.item not in {item['id'] for item in items}:
-            raise ValueError(f'Unknown checklist item: {args.item}')
+            ids = ', '.join(item['id'] for item in items)
+            raise ValueError(f'Unknown checklist item: {args.item} (items: {ids})')
         if any(item['id'] == args.item and 'check' in item for item in items):
-            raise ValueError(f'item {args.item} has an executable check; run verify to prove it')
+            raise ValueError(f'item {args.item} has an executable check; run verify to prove it '
+                             f'(its check runs during: _system/scripts/verify.sh {args.run})')
         if gate(path, 3) != 'approved':
             raise ValueError('Stage 3 needs a current approval receipt before items can be marked.')
         now = time.time_ns()
@@ -457,7 +472,7 @@ def print_checklist(path, verified=False):
         else:
             passed += 1
             if tree is not None and record.get('candidate') != tree:
-                lines.append(f"  - {item['id']}: passed on an older candidate (re-mark after changes)")
+                lines.append(f"  - {item['id']}: attested before the latest changes; re-check it only if the change affects it")
     proven = sum('check' in item for item in items)
     summary = f'Checklist: {passed}/{len(items)} passed ({proven} proven by check, {len(items) - proven} attested)'
     print('\n'.join([summary] + lines))
@@ -531,8 +546,14 @@ def skills(args):
             raise ValueError(f'{args.tool} failed with exit code {result.returncode}; inspect partial state before retrying.')
 
 
+class ShortErrorParser(argparse.ArgumentParser):
+    def error(self, message):
+        self.exit(2, f'sdlc.py: error: {message}\n'
+                     'Commands: new, status, decide, verify, mark, lock-tests, skills. See _system/SDLC.md.\n')
+
+
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = ShortErrorParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     new = commands.add_parser('new')
     new.add_argument('run')
@@ -565,7 +586,7 @@ def main():
     try:
         {'new': create, 'status': status, 'decide': decide, 'verify': verify, 'mark': mark, 'lock-tests': lock_tests, 'skills': skills}[args.command](args)
     except (ValueError, OSError, KeyError, subprocess.SubprocessError) as error:
-        print(f'Error: {error}', file=sys.stderr)
+        print(f'Error: {describe(error)}', file=sys.stderr)
         return 1
     return 0
 
