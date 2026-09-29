@@ -18,6 +18,8 @@ import time
 import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
+ITEM_ID = re.compile(r'[a-z0-9][a-z0-9-]{0,39}')
+ITEM_KEYS = {'id', 'description', 'verify'}
 ARTIFACTS = ['01-plan/output/intent.md', '02-design/output/spec.md', '03-build/output/plan.md']
 
 
@@ -98,11 +100,77 @@ def require_run(path):
     return read_json(path / 'run.json')
 
 
+def validate_checklist(value):
+    """Return the item list of a checklist definition, or raise ValueError naming the problem."""
+    if not isinstance(value, dict) or set(value) != {'schema', 'items'}:
+        raise ValueError('Checklist must be an object with exactly "schema" and "items".')
+    if value['schema'] != 1 or isinstance(value['schema'], bool):
+        raise ValueError('Checklist schema must be 1.')
+    items = value['items']
+    if not isinstance(items, list):
+        raise ValueError('Checklist items must be a list.')
+    seen = set()
+    for index, item in enumerate(items):
+        name = item.get('id') if isinstance(item, dict) and isinstance(item.get('id'), str) else f'#{index + 1}'
+        if not isinstance(item, dict) or set(item) != ITEM_KEYS:
+            raise ValueError(f'Checklist item {name} must have exactly the keys id, description, verify.')
+        if not ITEM_ID.fullmatch(item['id']):
+            raise ValueError(f'Checklist item {name} has an invalid id (use [a-z0-9][a-z0-9-]{{0,39}}).')
+        if item['id'] in seen:
+            raise ValueError(f'Checklist item {name} has a duplicate id.')
+        seen.add(item['id'])
+        for key in ('description', 'verify'):
+            if not isinstance(item[key], str) or not item[key].strip():
+                raise ValueError(f'Checklist item {name} needs a nonempty {key}.')
+    return items
+
+
+def load_checklist(path):
+    """None for legacy runs without checklist.json; otherwise the validated item list."""
+    target = path / 'checklist.json'
+    if not target.exists():
+        return None
+    try:
+        return validate_checklist(read_json(target))
+    except json.JSONDecodeError as error:
+        raise ValueError(f'checklist.json is not valid JSON: {error}') from error
+
+
+def checklist_digest(path):
+    """Digest of canonical definitions (whitespace/key order insensitive); None when absent."""
+    target = path / 'checklist.json'
+    if not target.exists():
+        return None
+    try:
+        return digest(encoded(read_json(target)))
+    except ValueError:
+        return digest(target.read_bytes())
+
+
+def marks(path, items):
+    """Latest valid receipt per current item id; receipts for removed items are ignored."""
+    ids = {item['id'] for item in items}
+    latest_marks = {}
+    for receipt in (path / 'marks').glob('*.json') if (path / 'marks').is_dir() else []:
+        try:
+            record = read_json(receipt)
+            key = (record['time_ns'], receipt.name)
+            if record['item'] in ids and record['result'] in ('passed', 'failed') and isinstance(record['time_ns'], int):
+                if record['item'] not in latest_marks or key > latest_marks[record['item']][0]:
+                    latest_marks[record['item']] = (key, record)
+        except (ValueError, KeyError, TypeError, OSError):
+            continue
+    return {item: record for item, (_, record) in latest_marks.items()}
+
+
 def inputs(path, stage):
     metadata = require_run(path)
     files = [path / 'brief.md'] if metadata['profile'] == 'light' else [path / p for p in ARTIFACTS[:stage]]
     files += sorted((ROOT / 'stages').glob('*/CONTEXT.md'))
-    return digest(encoded({str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in files}))
+    values = {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in files}
+    if stage == 3 and checklist_digest(path) is not None:
+        values[str((path / 'checklist.json').relative_to(ROOT))] = checklist_digest(path)
+    return digest(encoded(values))
 
 
 def latest(path, stage):
@@ -194,7 +262,8 @@ def test_lock(path):
 def evidence_inputs(path):
     return {'candidate': snapshot(), 'inputs': inputs(path, 3),
             'policy': digest((ROOT / '_system/verification.json').read_bytes()),
-            'test_lock': test_lock(path)}
+            'test_lock': test_lock(path),
+            **({'checklist': checklist_digest(path)} if checklist_digest(path) is not None else {})}
 
 
 def create(args):
@@ -206,6 +275,7 @@ def create(args):
         temporary = Path(tempfile.mkdtemp(prefix=f'.{args.run}-', dir=path.parent))
         try:
             write_json(temporary / 'run.json', {'profile': args.profile, 'kind': args.kind, 'schema': 1})
+            write_json(temporary / 'checklist.json', {'schema': 1, 'items': []})
             if args.profile == 'light':
                 shutil.copyfile(ROOT / '_shared/brief-template.md', temporary / 'brief.md')
             else:
@@ -226,6 +296,8 @@ def decide(args):
     with locked(path / '.writer-lock'):
         if args.stage not in stages(path):
             raise ValueError('Light runs use stage 3 for their combined definition gate.')
+        if args.decision == 'approved' and args.stage == 3 and load_checklist(path) == []:
+            raise ValueError('Define at least one checklist item before approval.')
         if args.decision == 'approved':
             for stage in stages(path):
                 if stage < args.stage and gate(path, stage) != 'approved':
@@ -262,6 +334,12 @@ def verify(args):
             if before != evidence_inputs(path):
                 raise ValueError('Candidate or inputs changed during verification; rerun against stable inputs.')
             ready(path)
+            items = load_checklist(path)
+            if items is not None:
+                marked = marks(path, items)
+                missing = [item['id'] for item in items if marked.get(item['id'], {}).get('result') != 'passed']
+                if missing:
+                    raise ValueError(f"Checklist incomplete: {', '.join(missing)}")
             write_json(receipt, {'result': 'passed', **before, 'log': digest((output / 'test-log.md').read_bytes())})
         except Exception as error:
             write_json(receipt, {'result': 'failed', 'error': str(error)})
@@ -287,6 +365,56 @@ def lock_tests(args):
     print('Local test baseline recorded. CI must independently validate the failing reproduction and protect the baseline.')
 
 
+def mark(args):
+    path = run_path(args.run)
+    require_run(path)
+    evidence = args.evidence.strip()
+    if not evidence:
+        raise ValueError('Evidence must be nonempty.')
+    with locked(path / '.writer-lock'):
+        items = load_checklist(path)
+        if items is None:
+            raise ValueError('Run has no checklist.json (legacy run); nothing to mark.')
+        if args.item not in {item['id'] for item in items}:
+            raise ValueError(f'Unknown checklist item: {args.item}')
+        if gate(path, 3) != 'approved':
+            raise ValueError('Stage 3 needs a current approval receipt before items can be marked.')
+        now = time.time_ns()
+        write_json(path / 'marks' / f'{args.item}-{now}-{uuid.uuid4().hex}.json', {
+            'item': args.item, 'result': args.result, 'evidence': evidence,
+            'candidate': snapshot()['tree'], 'time_ns': now})
+    print(f'Recorded {args.result} receipt for {args.item}.')
+
+
+def print_checklist(path):
+    try:
+        items = load_checklist(path)
+    except ValueError as error:
+        print(f'Checklist: invalid ({error})')
+        return
+    if items is None:
+        print('Checklist: none (legacy run)')
+        return
+    try:
+        tree = snapshot()['tree']
+    except (ValueError, OSError, subprocess.SubprocessError):
+        tree = None
+    marked = marks(path, items)
+    lines = []
+    passed = 0
+    for item in items:
+        record = marked.get(item['id'])
+        if record is None:
+            lines.append(f"  - {item['id']}: pending")
+        elif record['result'] != 'passed':
+            lines.append(f"  - {item['id']}: failed")
+        else:
+            passed += 1
+            if tree is not None and record.get('candidate') != tree:
+                lines.append(f"  - {item['id']}: passed on an older candidate (re-mark after changes)")
+    print('\n'.join([f'Checklist: {passed}/{len(items)} passed'] + lines))
+
+
 def evidence_matches(record, current):
     # HEAD records provenance. Evidence-only commits must not stale unchanged
     # candidate contents; CI still needs a check for the actual merge revision.
@@ -308,6 +436,7 @@ def status(args):
         if state != 'approved' and not blocked:
             print(f'Next: revise/review stage {stage}; record the human decision.')
             blocked = True
+    print_checklist(path)
     record_path = path / '04-test/output/verification.json'
     verified = False
     if record_path.exists():
@@ -371,6 +500,11 @@ def main():
         decision.add_argument('--' + flag, required=True)
     verification = commands.add_parser('verify')
     verification.add_argument('run')
+    marking = commands.add_parser('mark')
+    marking.add_argument('run')
+    marking.add_argument('item')
+    marking.add_argument('result', choices=['passed', 'failed'])
+    marking.add_argument('--evidence', required=True)
     baseline = commands.add_parser('lock-tests')
     baseline.add_argument('run')
     baseline.add_argument('paths', nargs='+')
@@ -381,7 +515,7 @@ def main():
     skill.add_argument('arguments', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     try:
-        {'new': create, 'status': status, 'decide': decide, 'verify': verify, 'lock-tests': lock_tests, 'skills': skills}[args.command](args)
+        {'new': create, 'status': status, 'decide': decide, 'verify': verify, 'mark': mark, 'lock-tests': lock_tests, 'skills': skills}[args.command](args)
     except (ValueError, OSError, KeyError, subprocess.SubprocessError) as error:
         print(f'Error: {error}', file=sys.stderr)
         return 1

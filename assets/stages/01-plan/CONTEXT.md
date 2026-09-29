@@ -4,7 +4,8 @@ Inputs: originator's request and `_shared/intent-template.md` for full runs.
 Read the run's `run.json` to select its profile.
 
 For light runs, write `runs/<slug>/brief.md` with problem, acceptance criteria,
-approach, implementation checklist, risks, and verification. Combine stages 01–03
+approach, risks, and verification. Define the implementation checklist as
+item definitions in `runs/<slug>/checklist.json` (id, description, verify). Combine stages 01–03
 into one human-reviewed definition. Use stage 3 when recording that decision.
 For full runs, write `runs/<slug>/01-plan/output/intent.md`.
 Use `seed-me` only for consequential unresolved decisions.
