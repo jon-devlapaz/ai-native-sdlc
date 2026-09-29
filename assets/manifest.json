@@ -1,5 +1,5 @@
 {
-  "version": "1.4.0",
+  "version": "1.5.0",
   "files": {
     ".tink/skillsets/build-skillset.json": "7961ce9cb12dc34cb4ed0b47f54423fcfb8be3f8473640a687d69167a6a9f797",
     ".tink/skillsets/deployment-skillset.json": "df5d8dca37efd18475b0d0e4383be980e002fa0432da53a42b2ebd03c476379c",
@@ -12,7 +12,7 @@
     "_shared/intent-template.md": "93eebf7467c4a1e76b02e1da8629d28be4218c199739c88f51e58914a8d5d403",
     "_shared/plan-template.md": "fe93363211dcc70b73843b0fa7827f8f9ca7b26e185db7a6b6e9d2adf5a42c00",
     "_shared/spec-template.md": "d26109e578014743268696a97d0f83932b48be8b17a9a04bf6ec822b498caa28",
-    "_system/SDLC.md": "1587f8a8da94b4317d17c8d48a370f1f98b60f6f54fd7421993b18a9e3bd7d96",
+    "_system/SDLC.md": "b13e217baeb219068226c17262a7a76b78cfc9a7b9ebf44e69f7298d1a5fed0a",
     "_system/scripts/new-run.sh": "5cefd13d71d3ad1f4dfdceb8ed85c2ac6f07ff4798f722df91c4d705305a260b",
     "_system/scripts/sdlc.py": "d889b7ea54593a20f63af8bd9a7284f7071324d0836838e65e34482d7ef3cebb",
     "_system/scripts/status.sh": "220b50bfca4d1dd6fcf786a9c834b295a3a8740efa8074a0846c8ad12a1a3c31",
@@ -24,5 +24,14 @@
     "stages/04-test/CONTEXT.md": "1f0809996e2ebc6a1a672213aa604082d2cfc2f4cb44cd3cfac05043cbf1a9bd",
     "stages/05-deploy/CONTEXT.md": "63351ca167a0d6797b711dceb3302e77f7d665c9a550ae2ff5341af457c03be0",
     "stages/06-maintain/CONTEXT.md": "06ae2f81abf34c7a43a402d19b303e33998cf3dfd959d2b323292da40b82ae52"
-  }
+  },
+  "projectOwned": [
+    ".tink/skillsets/build-skillset.json",
+    ".tink/skillsets/deployment-skillset.json",
+    ".tink/skillsets/design-skillset.json",
+    ".tink/skillsets/maintenance-skillset.json",
+    ".tink/skillsets/planning-skillset.json",
+    ".tink/skillsets/testing-skillset.json",
+    "_system/verification.json"
+  ]
 }

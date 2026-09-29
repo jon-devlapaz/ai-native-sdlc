@@ -60,7 +60,7 @@ class StagePinTests(unittest.TestCase):
         files = json.loads((ASSETS / 'manifest.json').read_text())['files']
         for name in STAGES.values():
             self.assertIn(f'.tink/skillsets/{name}.json', files)
-        self.assertEqual(json.loads((ASSETS / 'manifest.json').read_text())['version'], '1.4.0')
+        self.assertEqual(json.loads((ASSETS / 'manifest.json').read_text())['version'], '1.5.0')
 
     def test_no_gitignore_hides_pins(self):
         self.assertFalse(list(ASSETS.rglob('.gitignore')))
@@ -94,11 +94,11 @@ class StagePinTests(unittest.TestCase):
         self.run_init(ok=False)
         self.assertEqual(before, self.contents())
 
-    def test_modified_installed_pin_refused_on_repeat(self):
+    def test_modified_installed_pin_exempt_on_repeat(self):
         self.run_init()
         pin = self.root / '.tink/skillsets/build-skillset.json'
         pin.write_text('{"edited": true}')
-        self.run_init(ok=False)
+        self.assertIn('Project-owned, changed locally', self.run_init().stdout)
         self.assertEqual(pin.read_text(), '{"edited": true}')
 
     def test_stage_contexts_document_skills(self):
