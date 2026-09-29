@@ -50,6 +50,7 @@ class WorkflowTests(unittest.TestCase):
 
     def create_ready(self, *args):
         self.cli('new', 'example', *args)
+        (self.root / 'runs/example/checklist.json').unlink()  # legacy run: no checklist enforcement
         self.approve()
 
     def test_slug_and_no_overwrite(self):
@@ -110,6 +111,7 @@ class WorkflowTests(unittest.TestCase):
     def test_full_dependency_chain(self):
         self.cli('new', 'example', '--profile', 'full')
         self.cli('decide', 'example', '2', 'approved', '--reviewer', 'human', '--source', 'review:1', '--reason', 'yes', ok=False)
+        (self.root / 'runs/example/checklist.json').unlink()  # legacy run
         for stage in ['1', '2', '3']:
             self.approve(stage)
         (self.root / 'runs/example/01-plan/output/intent.md').write_text('changed intent')
@@ -315,6 +317,440 @@ class WorkflowTests(unittest.TestCase):
         (self.root / 'runs').mkdir()
         (self.root / 'runs/link').symlink_to(self.root, target_is_directory=True)
         self.cli('status', 'link', ok=False)
+
+    # ---- JSON checklist ----
+
+    def checklist_path(self):
+        return self.root / 'runs/example/checklist.json'
+
+    def write_checklist(self, items, raw=None):
+        text = raw if raw is not None else json.dumps({'schema': 1, 'items': items})
+        self.checklist_path().write_text(text)
+
+    def item(self, ident, **extra):
+        return {'id': ident, 'description': f'do {ident}', 'verify': f'check {ident}', **extra}
+
+    def checklist_ready(self, ids=('alpha',), *args):
+        self.cli('new', 'example', *args)
+        self.write_checklist([self.item(i) for i in ids])
+        self.approve()
+
+    def mark(self, item, result='passed', evidence='observed', ok=True):
+        return self.cli('mark', 'example', item, result, '--evidence', evidence, ok=ok)
+
+    def receipts(self):
+        return sorted((self.root / 'runs/example/marks').glob('*.json'))
+
+    def test_new_run_has_empty_valid_checklist(self):
+        for profile in ['light', 'full']:
+            with self.subTest(profile=profile):
+                shutil.rmtree(self.root / 'runs', ignore_errors=True)
+                self.cli('new', 'example', '--profile', profile)
+                self.assertEqual(json.loads(self.checklist_path().read_text()), {'schema': 1, 'items': []})
+                self.assertIn('Checklist: no items defined', self.cli('status', 'example'))
+
+    def test_approval_requires_nonempty_valid_checklist(self):
+        self.cli('new', 'example')
+        args = ('decide', 'example', '3', 'approved', '--reviewer', 'h', '--source', 's', '--reason', 'r')
+        self.assertIn('at least one checklist item', self.cli(*args, ok=False))
+        self.cli('decide', 'example', '3', 'changes-requested', '--reviewer', 'h', '--source', 's', '--reason', 'r')
+        self.write_checklist([], raw='{not json')
+        self.cli(*args, ok=False)
+        self.cli('decide', 'example', '3', 'changes-requested', '--reviewer', 'h', '--source', 's', '--reason', 'r')
+        self.write_checklist([self.item('alpha')])
+        self.cli(*args)
+        self.assertIn('Stage 3: approved', self.cli('status', 'example'))
+
+    def test_invalid_checklists_rejected(self):
+        self.cli('new', 'example')
+        bad = {
+            'extra key passes': [self.item('alpha', passes=True)],
+            'extra key status': [self.item('alpha', status='done')],
+            'duplicate ids': [self.item('alpha'), self.item('alpha')],
+            'uppercase id': [self.item('Alpha')],
+            'leading hyphen': [self.item('-alpha')],
+            'long id': [self.item('a' * 41)],
+            'blank description': [{'id': 'alpha', 'description': '  ', 'verify': 'x'}],
+            'missing verify': [{'id': 'alpha', 'description': 'x'}],
+        }
+        for name, items in bad.items():
+            with self.subTest(name):
+                self.write_checklist(items)
+                out = self.cli('decide', 'example', '3', 'approved', '--reviewer', 'h', '--source', 's', '--reason', 'r', ok=False)
+                self.assertIn('Error:', out)
+        self.write_checklist([], raw=json.dumps({'schema': 2, 'items': [self.item('alpha')]}))
+        self.cli('decide', 'example', '3', 'approved', '--reviewer', 'h', '--source', 's', '--reason', 'r', ok=False)
+        self.write_checklist([], raw='[]')
+        self.cli('decide', 'example', '3', 'approved', '--reviewer', 'h', '--source', 's', '--reason', 'r', ok=False)
+        self.write_checklist([self.item('alpha', passes=True)])
+        self.assertIn('alpha', self.cli('decide', 'example', '3', 'approved', '--reviewer', 'h', '--source', 's', '--reason', 'r', ok=False))
+
+    def test_checklist_definition_edit_stales_approval_but_reformat_does_not(self):
+        self.checklist_ready()
+        self.assertIn('Stage 3: approved', self.cli('status', 'example'))
+        data = json.loads(self.checklist_path().read_text())
+        self.checklist_path().write_text(json.dumps({'items': [dict(reversed(list(data['items'][0].items())))], 'schema': 1}, indent=8))
+        self.assertIn('Stage 3: approved', self.cli('status', 'example'))
+        self.write_checklist([{**self.item('alpha'), 'verify': 'weaker'}])
+        self.assertIn('Stage 3: stale', self.cli('status', 'example'))
+        self.approve()
+        self.write_checklist([self.item('alpha'), self.item('beta')])
+        self.assertIn('Stage 3: stale', self.cli('status', 'example'))
+        self.approve()
+        self.checklist_path().unlink()
+        self.assertIn('Stage 3: stale', self.cli('status', 'example'))
+
+    def test_full_profile_checklist_binds_stage_three_only(self):
+        self.cli('new', 'example', '--profile', 'full')
+        self.write_checklist([self.item('alpha')])
+        for stage in ['1', '2', '3']:
+            self.approve(stage)
+        self.write_checklist([self.item('alpha'), self.item('beta')])
+        out = self.cli('status', 'example')
+        self.assertIn('Stage 1: approved', out)
+        self.assertIn('Stage 2: approved', out)
+        self.assertIn('Stage 3: stale', out)
+        self.approve()
+        self.assertIn('Checklist: 0/2 passed', self.cli('status', 'example'))
+
+    def test_mark_preconditions(self):
+        self.cli('new', 'example')
+        self.write_checklist([self.item('alpha')])
+        self.mark('alpha', ok=False)  # gate not approved
+        self.approve()
+        self.mark('nope', ok=False)
+        self.mark('alpha', evidence='   ', ok=False)
+        self.cli('mark', 'example', 'alpha', 'passed', ok=False)
+        self.cli('mark', 'example', 'alpha', 'maybe', '--evidence', 'x', ok=False)
+        self.assertEqual(self.receipts(), [])
+        self.write_checklist([self.item('alpha')], raw='{bad')
+        self.mark('alpha', ok=False)
+        self.write_checklist([self.item('alpha')])
+        self.mark('alpha')
+        self.cli('mark', 'missing-run', 'alpha', 'passed', '--evidence', 'x', ok=False)
+
+    def test_mark_requires_current_approval(self):
+        self.checklist_ready()
+        self.write_checklist([self.item('alpha'), self.item('beta')])  # stale
+        self.mark('alpha', ok=False)
+
+    def test_mark_appends_receipts_and_never_rewrites(self):
+        self.checklist_ready(('alpha', 'beta'))
+        self.mark('alpha', evidence='first')
+        first = self.receipts()[0]
+        before = (first.read_bytes(), first.stat().st_mtime_ns)
+        self.mark('alpha', 'failed', evidence='second')
+        self.mark('beta')
+        self.assertEqual(len(self.receipts()), 3)
+        self.assertEqual((first.read_bytes(), first.stat().st_mtime_ns), before)
+        record = json.loads(first.read_text())
+        self.assertEqual(set(record), {'item', 'result', 'evidence', 'candidate', 'time_ns'})
+        self.assertEqual((record['item'], record['result'], record['evidence']), ('alpha', 'passed', 'first'))
+        self.assertEqual(record['candidate'], workflow_tree(self.root))
+        self.assertTrue(first.name.startswith(f"alpha-{record['time_ns']}-"))
+
+    def test_latest_mark_wins(self):
+        self.checklist_ready()
+        self.mark('alpha')
+        self.assertIn('Checklist: 1/1 passed', self.cli('status', 'example'))
+        self.mark('alpha', 'failed', evidence='regressed')
+        out = self.cli('status', 'example')
+        self.assertIn('Checklist: 0/1 passed', out)
+        self.assertIn('  - alpha: failed', out)
+        self.mark('alpha')
+        self.assertIn('Checklist: 1/1 passed', self.cli('status', 'example'))
+
+    def test_orphan_marks_ignored(self):
+        self.checklist_ready(('alpha', 'beta'))
+        self.mark('beta')
+        self.write_checklist([self.item('alpha')])
+        self.approve()
+        out = self.cli('status', 'example')
+        self.assertIn('Checklist: 0/1 passed', out)
+        self.assertNotIn('beta', out)
+
+    def test_status_checklist_lines(self):
+        self.checklist_ready(('alpha', 'beta', 'gamma'))
+        out = self.cli('status', 'example')
+        self.assertIn('Checklist: 0/3 passed (0 proven by check, 3 attested)\n  - alpha: pending\n  - beta: pending\n  - gamma: pending\n', out)
+        self.assertLess(out.index('Stage 3'), out.index('Checklist:'))
+        self.assertLess(out.index('Checklist:'), out.index('Verification'))
+        self.mark('alpha')
+        self.mark('beta', 'failed', evidence='broken')
+        out = self.cli('status', 'example')
+        self.assertIn('Checklist: 1/3 passed', out)
+        self.assertNotIn('  - alpha:', out)
+        self.assertIn('  - beta: failed', out)
+        self.assertIn('  - gamma: pending', out)
+        (self.root / 'code.py').write_text('changed after mark')
+        out = self.cli('status', 'example')
+        self.assertIn('Checklist: 1/3 passed', out)
+        self.assertIn('  - alpha: passed on an older candidate (re-mark after changes)', out)
+        self.mark('alpha')
+        self.assertNotIn('older candidate', self.cli('status', 'example'))
+
+    def test_status_survives_snapshot_failure(self):
+        self.checklist_ready()
+        self.mark('alpha')
+        shutil.rmtree(self.root / '.git')
+        out = self.cli('status', 'example')
+        self.assertIn('Checklist: 1/1 passed', out)
+
+    def test_verify_requires_all_items_passed(self):
+        self.checklist_ready(('alpha', 'beta'))
+        out = self.cli('verify', 'example', ok=False)
+        self.assertIn('Checklist incomplete: alpha, beta', out)
+        receipt = self.root / 'runs/example/04-test/output/verification.json'
+        self.assertEqual(json.loads(receipt.read_text())['result'], 'failed')
+        self.mark('alpha')
+        self.mark('beta', 'failed', evidence='no')
+        self.assertIn('Checklist incomplete: beta', self.cli('verify', 'example', ok=False))
+        self.mark('beta')
+        self.cli('verify', 'example')
+        passed = json.loads(receipt.read_text())
+        self.assertEqual(passed['result'], 'passed')
+        self.assertEqual(passed['checklist'], workflow_checklist_digest(self.checklist_path()))
+        self.assertIn('Verification: current', self.cli('status', 'example'))
+
+    def test_verify_does_not_require_marks_on_current_tree(self):
+        self.checklist_ready()
+        self.mark('alpha')
+        (self.root / 'code.py').write_text('changed after mark')
+        self.cli('verify', 'example')
+        self.assertIn('older candidate', self.cli('status', 'example'))
+
+    def test_checklist_change_stales_verification(self):
+        self.checklist_ready()
+        self.mark('alpha')
+        self.cli('verify', 'example')
+        receipt = self.root / 'runs/example/04-test/output/verification.json'
+        record = json.loads(receipt.read_text())
+        # Definitions changed but approval renewed: receipt digest must differ.
+        self.write_checklist([{**self.item('alpha'), 'verify': 'stricter'}])
+        self.approve()
+        self.assertNotIn('Verification: current', self.cli('status', 'example'))
+        self.assertIn('checklist', record)
+
+    def test_legacy_run_without_checklist_unaffected(self):
+        self.cli('new', 'example')
+        self.checklist_path().unlink()
+        self.approve()
+        out = self.cli('status', 'example')
+        self.assertIn('Checklist: none (legacy run)', out)
+        self.assertIn('Stage 3: approved', out)
+        self.mark('alpha', ok=False)
+        self.cli('verify', 'example')
+        receipt = json.loads((self.root / 'runs/example/04-test/output/verification.json').read_text())
+        self.assertNotIn('checklist', receipt)
+        self.assertIn('Verification: current', self.cli('status', 'example'))
+
+    def test_concurrent_marks_leave_valid_receipts(self):
+        self.checklist_ready(('alpha', 'beta'))
+        script = str(self.root / '_system/scripts/sdlc.py')
+        procs = [subprocess.Popen(['python3', script, 'mark', 'example', ['alpha', 'beta'][i % 2], 'passed',
+                                   '--evidence', f'proc {i}'], cwd='/', stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                 for i in range(6)]
+        for proc in procs:
+            proc.communicate()
+            self.assertEqual(proc.returncode, 0)
+        receipts = self.receipts()
+        self.assertEqual(len(receipts), 6)
+        self.assertEqual(len({r.name for r in receipts}), 6)
+        for receipt in receipts:
+            self.assertEqual(json.loads(receipt.read_text())['result'], 'passed')
+        self.assertIn('Checklist: 2/2 passed', self.cli('status', 'example'))
+
+
+    # ---- executable checks on items ----
+
+    PROOF = 'import os, sys; sys.exit(0 if os.path.exists("proof.txt") else 1)'
+
+    def check(self, code=None, timeout=5):
+        return {'argv': ['python3', '-c', code or self.PROOF], 'timeout_seconds': timeout}
+
+    def checked_ready(self, checked=('gate',), attested=(), code=None, timeout=5):
+        self.cli('new', 'example')
+        self.write_checklist([self.item(i, check=self.check(code, timeout)) for i in checked]
+                             + [self.item(i) for i in attested])
+        self.approve()
+
+    def receipt(self):
+        return json.loads((self.root / 'runs/example/04-test/output/verification.json').read_text())
+
+    def test_invalid_item_checks_rejected(self):
+        self.cli('new', 'example')
+        good = self.check()
+        bad = {
+            'missing argv': {'timeout_seconds': 5},
+            'empty argv': {'argv': [], 'timeout_seconds': 5},
+            'empty string': {'argv': ['python3', ''], 'timeout_seconds': 5},
+            'non-string': {'argv': ['python3', 1], 'timeout_seconds': 5},
+            'missing timeout': {'argv': ['true']},
+            'zero timeout': {'argv': ['true'], 'timeout_seconds': 0},
+            'negative timeout': {'argv': ['true'], 'timeout_seconds': -1},
+            'string timeout': {'argv': ['true'], 'timeout_seconds': '5'},
+            'bool timeout': {'argv': ['true'], 'timeout_seconds': True},
+            'extra key': {**good, 'shell': True},
+            'not an object': ['true'],
+        }
+        for name, check in bad.items():
+            with self.subTest(name):
+                self.write_checklist([self.item('alpha', check=check)])
+                out = self.cli('decide', 'example', '3', 'approved', '--reviewer', 'h', '--source', 's', '--reason', 'r', ok=False)
+                self.assertIn('alpha', out)
+        self.write_checklist([self.item('alpha', check=good)])
+        self.approve()
+
+    def test_verify_runs_item_check_without_mark(self):
+        self.checked_ready()
+        (self.root / 'proof.txt').write_text('done')
+        out = self.cli('verify', 'example')
+        self.assertIn('Configured checks passed', out)
+        self.assertEqual(self.receipt()['result'], 'passed')
+        self.assertEqual(self.receipt()['checklist_items'], {'gate': 'proven'})
+        self.assertEqual(self.receipts(), [])
+        log = (self.root / 'runs/example/04-test/output/test-log.md').read_text()
+        self.assertIn('checklist item gate', log)
+        self.assertIn('proof.txt', log)
+
+    def test_dogfood_attack_marks_cannot_pass_a_failing_check(self):
+        self.checked_ready(code='raise SystemExit(1)')
+        self.assertIn('has an executable check', self.mark('gate', ok=False))
+        out = self.cli('verify', 'example', ok=False)
+        self.assertIn('Checklist check failed: gate', out)
+        self.assertEqual(self.receipt()['result'], 'failed')
+        self.assertIn('Checklist check failed: gate', self.receipt()['error'])
+        self.assertEqual(self.receipts(), [])
+        self.assertNotIn('Verification: current', self.cli('status', 'example'))
+
+    def test_check_passes_only_after_real_work(self):
+        self.checked_ready()
+        self.assertIn('Checklist check failed: gate', self.cli('verify', 'example', ok=False))
+        self.assertIn('  - gate: pending (proved by verify)', self.cli('status', 'example'))
+        (self.root / 'proof.txt').write_text('done')
+        self.cli('verify', 'example')
+        out = self.cli('status', 'example')
+        self.assertIn('Checklist: 1/1 passed (1 proven by check, 0 attested)', out)
+        self.assertNotIn('  - gate:', out)
+        self.assertIn('Verification: current', out)
+
+    def test_item_check_timeout_fails_with_item_id(self):
+        self.checked_ready(code='import time; time.sleep(3)', timeout=1)
+        self.assertIn('Checklist check failed: gate', self.cli('verify', 'example', ok=False))
+        self.assertEqual(self.receipt()['result'], 'failed')
+
+    def test_item_check_missing_executable_fails_with_item_id(self):
+        self.cli('new', 'example')
+        self.write_checklist([self.item('gate', check={'argv': ['missing-executable-sdlc'], 'timeout_seconds': 1})])
+        self.approve()
+        self.assertIn('Checklist check failed: gate', self.cli('verify', 'example', ok=False))
+
+    def test_configured_checks_still_run_first(self):
+        self.checked_ready(code='print("item ran")')
+        self.config([{'argv': ['python3', '-c', 'raise SystemExit(1)'], 'timeout_seconds': 5}])
+        out = self.cli('verify', 'example', ok=False)
+        self.assertIn('Check failed', out)
+        self.assertNotIn('Checklist check failed', out)
+
+    def test_attested_item_still_blocks_beside_checked_item(self):
+        self.checked_ready(('gate',), ('note', 'other'))
+        (self.root / 'proof.txt').write_text('done')
+        self.assertIn('Checklist incomplete: note, other', self.cli('verify', 'example', ok=False))
+        self.mark('note')
+        out = self.cli('verify', 'example', ok=False)
+        self.assertIn('Checklist incomplete: other', out)
+        self.assertNotIn('gate', out.split('incomplete:')[1])
+        self.mark('other')
+        self.cli('verify', 'example')
+        self.assertEqual(self.receipt()['checklist_items'], {'gate': 'proven', 'note': 'attested', 'other': 'attested'})
+
+    def test_mark_refused_for_checked_item_but_not_others(self):
+        self.checked_ready(('gate',), ('note',))
+        out = self.mark('gate', ok=False)
+        self.assertIn('item gate has an executable check; run verify to prove it', out)
+        self.mark('gate', 'failed', evidence='x', ok=False)
+        self.assertEqual(self.receipts(), [])
+        self.mark('note')
+        self.assertEqual(len(self.receipts()), 1)
+
+    def test_status_counts_and_pending_lines(self):
+        self.checked_ready(('gate', 'gate2'), ('note',))
+        out = self.cli('status', 'example')
+        self.assertIn('Checklist: 0/3 passed (2 proven by check, 1 attested)\n', out)
+        self.assertIn('  - gate: pending (proved by verify)', out)
+        self.assertIn('  - gate2: pending (proved by verify)', out)
+        self.assertIn('  - note: pending', out)
+        self.mark('note')
+        (self.root / 'proof.txt').write_text('done')
+        self.cli('verify', 'example')
+        out = self.cli('status', 'example')
+        self.assertIn('Checklist: 3/3 passed (2 proven by check, 1 attested)', out)
+
+    def test_code_change_after_verify_relists_checked_items_pending(self):
+        self.checked_ready()
+        (self.root / 'proof.txt').write_text('done')
+        self.cli('verify', 'example')
+        self.assertIn('Checklist: 1/1 passed', self.cli('status', 'example'))
+        (self.root / 'code.py').write_text('changed after verify')
+        out = self.cli('status', 'example')
+        self.assertIn('Checklist: 0/1 passed (1 proven by check, 0 attested)', out)
+        self.assertIn('  - gate: pending (proved by verify)', out)
+
+    def test_editing_check_argv_after_approval_stales_stage_three(self):
+        self.checked_ready()
+        self.assertIn('Stage 3: approved', self.cli('status', 'example'))
+        self.write_checklist([self.item('gate', check=self.check('raise SystemExit(0)'))])
+        self.assertIn('Stage 3: stale', self.cli('status', 'example'))
+        self.cli('verify', 'example', ok=False)
+        self.approve()
+        self.cli('verify', 'example')
+
+    def test_item_check_cannot_mutate_candidate(self):
+        self.checked_ready(code='from pathlib import Path; Path("code.py").write_text("modified")')
+        self.assertIn('changed during verification', self.cli('verify', 'example', ok=False))
+        self.assertEqual(self.receipt()['result'], 'failed')
+
+    def test_empty_checklist_message(self):
+        self.cli('new', 'example')
+        out = self.cli('status', 'example')
+        self.assertIn('Checklist: no items defined', out)
+        self.assertNotIn('0/0', out)
+
+    def test_deleted_checklist_after_approval_reported_missing(self):
+        self.checklist_ready()
+        decision = sorted((self.root / 'runs/example/decisions').glob('3-*.json'))[-1]
+        self.assertTrue(json.loads(decision.read_text())['has_checklist'])
+        self.checklist_path().unlink()
+        out = self.cli('status', 'example')
+        self.assertIn('Checklist: MISSING (deleted after approval)', out)
+        self.assertNotIn('legacy run', out)
+        self.assertIn('Stage 3: stale', out)
+
+    def test_legacy_decisions_do_not_record_or_report_checklist(self):
+        self.create_ready()
+        decision = sorted((self.root / 'runs/example/decisions').glob('3-*.json'))[-1]
+        self.assertNotIn('has_checklist', json.loads(decision.read_text()))
+        self.assertIn('Checklist: none (legacy run)', self.cli('status', 'example'))
+        self.cli('verify', 'example')
+        self.assertNotIn('checklist_items', self.receipt())
+
+    def test_decision_without_field_behaves_as_before(self):
+        self.checklist_ready()
+        decision = sorted((self.root / 'runs/example/decisions').glob('3-*.json'))[-1]
+        record = json.loads(decision.read_text())
+        del record['has_checklist']
+        decision.write_text(json.dumps(record))
+        self.checklist_path().unlink()
+        self.assertIn('Checklist: none (legacy run)', self.cli('status', 'example'))
+
+
+def workflow_tree(root):
+    with patch.object(workflow, 'ROOT', root):
+        return workflow.snapshot()['tree']
+
+
+def workflow_checklist_digest(path):
+    return hashlib.sha256(json.dumps(json.loads(path.read_text()), sort_keys=True).encode()).hexdigest()
 
 
 if __name__ == '__main__':

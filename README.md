@@ -30,6 +30,7 @@ Git, and Bash on a POSIX system; native Windows operation is not supported.
 ```sh
 _system/scripts/new-run.sh feature-name
 _system/scripts/status.sh feature-name
+python3 _system/scripts/sdlc.py mark feature-name item-id passed --evidence 'what was observed'
 ```
 
 Edit the generated brief and obtain actual human acceptance before recording the
