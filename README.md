@@ -17,7 +17,8 @@ python3 .agents/skills/ai-native-sdlc/scripts/init.py .
 
 The initializer installs stage contracts, templates, runtime scripts, and the operator
 guide at `_system/SDLC.md`. It preserves existing project instructions and refuses
-conflicting or different-version scaffolds. Parse a separate migration for upgrades.
+conflicting scaffolds. Existing installs upgrade explicitly with `--upgrade` (preview with
+`--upgrade --check`); see `_system/SDLC.md`.
 Use a separate worktree or clone for code-writing runs.
 
 **Verification starts unconfigured.** Set `_system/verification.json` to real project

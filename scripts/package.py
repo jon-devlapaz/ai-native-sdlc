@@ -22,7 +22,9 @@ def main():
         if not path.is_file() or path == manifest_path or '__pycache__' in path.parts or path.suffix == '.pyc':
             continue
         files[str(path.relative_to(ASSETS))] = hashlib.sha256(path.read_bytes()).hexdigest()
-    manifest = {'version': args.version or old['version'], 'files': files}
+    owned = sorted(name for name in files if name == '_system/verification.json'
+                   or (name.startswith('.tink/skillsets/') and name.count('/') == 2 and name.endswith('.json')))
+    manifest = {'version': args.version or old['version'], 'files': files, 'projectOwned': owned}
     if args.check:
         if manifest != old:
             parser.exit(1, 'Manifest does not match package contents. Update it for the release.\n')

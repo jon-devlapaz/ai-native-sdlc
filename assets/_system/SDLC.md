@@ -117,11 +117,30 @@ Git must have an initial commit before candidate verification can run.
 
 The installer requires an explicit target. `--check` previews a fresh installation
 or validates an existing one. Repeat initialization preserves the project verification
-configuration. Modified or missing managed files and version differences are reported;
-there is no force overwrite or automatic upgrade. Create a fresh scaffold in a temporary
-directory, compare it with the project, and parse a separate migration before applying
-changes. Preserve run evidence and customizations; never update factory files during an
-active feature run. After migration, renew stale approvals and verification evidence.
+configuration. Modified or missing managed files are reported as errors; a scaffold
+from a different package version is refused with a pointer to `--upgrade`. Preserve run
+evidence and customizations; never update factory files during an active feature run.
+
+## Upgrading the scaffold
+
+Preview, then apply (the receipt `_system/scaffold.json` is the trust baseline):
+
+    python3 <package>/scripts/init.py <target> --upgrade --check
+    python3 <package>/scripts/init.py <target> --upgrade
+
+- Managed files (stages, `_shared/`, `_system/` except `verification.json`) are updated
+  when unmodified, restored when missing, removed when dropped upstream and unmodified.
+- Project-owned files (`_system/verification.json` and `.tink/skillsets/*.json`) are never
+  overwritten; locally changed ones are kept and reported. New upstream pins are created.
+- A managed file you customized blocks the upgrade: nothing is written, and the plan lists
+  each file with a `diff` to compare. Merge your changes by hand, or commit them and rerun
+  with `--overwrite-customized` to take the package version (git keeps your old copy).
+- Only the router block of `AGENTS.md` is replaced; the rest of the file is preserved.
+  Missing or duplicated router markers refuse the upgrade. Downgrades are refused.
+- `runs/` is never modified. When stage `CONTEXT.md` files change, approvals in runs that
+  have decision receipts read as stale until re-approved.
+- The receipt is written last, so an interrupted upgrade is safe to rerun.
+- Afterward run `python3 _system/scripts/sdlc.py walk`.
 
 Initialization uses a cooperating-process lock and preflights collisions and symlinks.
 Ordinary write failures roll back files written by that attempt; empty directories may
