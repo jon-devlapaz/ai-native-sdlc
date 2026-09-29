@@ -1,22 +1,28 @@
 {
-  "version": "1.1.1",
+  "version": "1.2.0",
   "files": {
+    ".tink/skillsets/build-skillset.json": "7961ce9cb12dc34cb4ed0b47f54423fcfb8be3f8473640a687d69167a6a9f797",
+    ".tink/skillsets/deployment-skillset.json": "df5d8dca37efd18475b0d0e4383be980e002fa0432da53a42b2ebd03c476379c",
+    ".tink/skillsets/design-skillset.json": "f336bd272d3ffedef8f03c79e93d0d188dd2b4918aa30a71991d30978ada8d15",
+    ".tink/skillsets/maintenance-skillset.json": "7e0b106438fe287a13b426291ab1e852bcbb6bc01c01486791a1185426baaf6b",
+    ".tink/skillsets/planning-skillset.json": "7cab8b1843071777338c4a67a8e0de6cb9f07046dc3d3bcade012e072911d69a",
+    ".tink/skillsets/testing-skillset.json": "1b70ebfe58335587628a1e2f3d0cdb5880cd3a40e3f6acd2753c8895167bf755",
     "_shared/REVIEW.md": "5f3c11271887d9e1a87d213dc99150d573fa16c85bd7c460c35df2df4b1b959b",
     "_shared/brief-template.md": "3a4eeec70672ea41333c948c656ec5f0a5eb3dd10f1e656dbae9ef2834c68121",
     "_shared/intent-template.md": "93eebf7467c4a1e76b02e1da8629d28be4218c199739c88f51e58914a8d5d403",
     "_shared/plan-template.md": "fe93363211dcc70b73843b0fa7827f8f9ca7b26e185db7a6b6e9d2adf5a42c00",
     "_shared/spec-template.md": "d1f8f2bbd9f39f8e1a6ba114eb763cbffde69b7564b701c7a3677ae7abbaa4d3",
-    "_system/SDLC.md": "c7fe490b4f837b1e8d1ea8ce9674e9d819168d0f9abfa08a51b69bc3eed9f2a3",
+    "_system/SDLC.md": "34efbba8177187d261b086f679ff216da58dbe8315575abb7775eeb7851684ef",
     "_system/scripts/new-run.sh": "5cefd13d71d3ad1f4dfdceb8ed85c2ac6f07ff4798f722df91c4d705305a260b",
     "_system/scripts/sdlc.py": "c1ba807cc3894171d0829ad86b636cf8827e693fd2be82af7ed0a3bdb62a46c1",
     "_system/scripts/status.sh": "220b50bfca4d1dd6fcf786a9c834b295a3a8740efa8074a0846c8ad12a1a3c31",
     "_system/scripts/verify.sh": "ef2e22f7fd5a30ee4cbe54cc9eb4b08a093e5603a02f9bbf2b35d7784c10cc02",
     "_system/verification.json": "1308d67c7c43c1a8f5c90cde99a69e217a7fa7c553cece572ecf3228b50fa937",
-    "stages/01-plan/CONTEXT.md": "be8f36ea37829ea364f4f9ea03c9ca7b560d4474871858a3db3384d251c136e3",
-    "stages/02-design/CONTEXT.md": "47b1c09dc1b4e9e275fb657762a0a0b7a7b2cc76ff7a6ff1e57fb2edffc56981",
-    "stages/03-build/CONTEXT.md": "9a67de782e1333211e8b1c243cc53274403979aabcef59763166f4f7f042fd20",
-    "stages/04-test/CONTEXT.md": "bfb0ded14503702503f65c3732a186ba619185ced0ced96dfefdbc8cfbba5f7c",
-    "stages/05-deploy/CONTEXT.md": "2ec7affed8f7dc2290b23bc28ebcf7a76ed36d70ff5f0834b428467ac294e38c",
-    "stages/06-maintain/CONTEXT.md": "090cc48adc7c37216470c5b797888d8b9347a34c2ab99203645a441ee626d184"
+    "stages/01-plan/CONTEXT.md": "1777787cfd17c17c7e40601ff3bb5b335c0050d09aa946b209a1b6b5c8a630a2",
+    "stages/02-design/CONTEXT.md": "96c11dc82e51fcdd1ba5cd5a997d7b77a38b05fee341fc22255b5928597d9bfa",
+    "stages/03-build/CONTEXT.md": "d08a0fc198d3d4eac15e374d250fd9225221d6e5002e491835a5ce8e7c475d6d",
+    "stages/04-test/CONTEXT.md": "31f69f6923ab39e7eb75e2d36f8bb5d7321a0e6a94e7b908265f867c4427fef0",
+    "stages/05-deploy/CONTEXT.md": "b0dc993430acd886986e962fab7b2e71592c00edfb7c5c0c689dce57298c163a",
+    "stages/06-maintain/CONTEXT.md": "81956502592f72ba88b0b028dc032b4395c095b2020b2f67632be475231cc16b"
   }
 }

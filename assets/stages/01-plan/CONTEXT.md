@@ -13,3 +13,13 @@ Use `seed-me` only for consequential unresolved decisions.
 Gate: actual human acceptance recorded with `sdlc.py decide`; text status tags
 are not approval evidence. Follow `_system/scripts/status.sh <slug>`.
 See `_system/SDLC.md` for rejection, stale inputs, and authority boundaries.
+
+## Skills
+
+Skillset: `planning-skillset` (pin: `.tink/skillsets/planning-skillset.json`).
+- Once per machine/library, after reviewing the pin (it selects exact upstream code):
+  `tink library fetch .tink/skillsets/planning-skillset.json`
+- At stage open, compile the required disciplines, then start a NEW session so
+  `AGENTS.md` is re-read: `tink use planning-skillset --snapshot runs/<slug>/01-plan`
+- For a capability gap: `tink-route --use --skillset planning-skillset --receipt runs/<slug>/skills.jsonl "<what you need>"`
+  (exit 1 or 2 means continue without a skill).

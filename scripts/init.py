@@ -16,6 +16,7 @@ ROUTER = '''<!-- AI-Native SDLC Router -->
 - Read `stages/<stage-name>/CONTEXT.md` before processing a stage.
 - Keep factory references in `_shared/` unchanged during feature runs.
 - Use separate worktrees or clones for code-writing runs.
+- Stage skills: see the Skills section of the current stage's CONTEXT.md.
 <!-- End AI-Native SDLC Router -->'''
 
 

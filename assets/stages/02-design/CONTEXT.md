@@ -12,3 +12,13 @@ Gate: full runs require a current stage 2 human decision before build planning.
 Light runs include design in the combined stage 3 definition review.
 Changing upstream inputs makes existing approvals stale; preserve feedback and
 revise the artifact rather than deleting downstream work.
+
+## Skills
+
+Skillset: `design-skillset` (pin: `.tink/skillsets/design-skillset.json`).
+- Once per machine/library, after reviewing the pin (it selects exact upstream code):
+  `tink library fetch .tink/skillsets/design-skillset.json`
+- At stage open, compile the required disciplines, then start a NEW session so
+  `AGENTS.md` is re-read: `tink use design-skillset --snapshot runs/<slug>/02-design`
+- For a capability gap: `tink-route --use --skillset design-skillset --receipt runs/<slug>/skills.jsonl "<what you need>"`
+  (exit 1 or 2 means continue without a skill).
