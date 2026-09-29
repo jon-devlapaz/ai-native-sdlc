@@ -9,6 +9,8 @@ item definitions in `runs/<slug>/checklist.json` (id, description, verify, and a
 into one human-reviewed definition. Use stage 3 when recording that decision.
 For full runs, write `runs/<slug>/01-plan/output/intent.md`.
 Use `seed-me` only for consequential unresolved decisions.
+Output: `runs/<slug>/brief.md` and `runs/<slug>/checklist.json` (light runs), or
+`runs/<slug>/01-plan/output/intent.md` (full runs).
 
 Gate: actual human acceptance recorded with `sdlc.py decide`; text status tags
 are not approval evidence. Follow `_system/scripts/status.sh <slug>`.

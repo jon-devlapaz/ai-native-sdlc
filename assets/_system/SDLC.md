@@ -63,7 +63,7 @@ This detects local changes, not adversarial tampering. Strict protection require
 
 Commit baseline `.tink/skills.toml` and `.tink/skills.lock` when Tink has created them through an authorized operation. Restore into each worktree through Tink; do not copy writable directories by symlink. Lockfile updates are reviewed dependency changes.
 
-Load mandatory skills deterministically. Route only genuine capability gaps with `tink-route`; allow abstention. `tink-route` does not mutate project skills: it mounts the delivered skill into the git-ignored `.tink/.active/`, prints it on stdout, and needs no cleanup. Run `tink` mutations through the wrapper:
+Load mandatory skills deterministically. Route only genuine capability gaps with `tink-route`; allow abstention. `tink-route` does not mutate project skills: it mounts the delivered skill into the git-ignored `.active` directory inside `.tink`, prints it on stdout, and needs no cleanup. Run `tink` mutations through the wrapper:
 
 ```sh
 python3 _system/scripts/sdlc.py skills tink -- skill check
@@ -91,11 +91,21 @@ tink-route --skillset <name>-skillset --receipt runs/<slug>/skills.jsonl "<what 
 
 ## Recovery and release
 
-Creation validates names and publishes a complete run atomically. Each run has one writer at a time. Busy or interrupted operations fail with the lock path. After a crash, confirm no process owns the operation before removing its lock directory, then rerun. Status is derived from receipts; do not hand-edit generated records.
+Creation validates names and publishes a complete run atomically. Each run has one writer at a time. Busy or interrupted operations fail with the lock path. After a crash, confirm no process owns the operation before removing its lock directory, then rerun. Status is derived from receipts; do not hand-edit generated records. To check that the workspace stays legible to an agent with no memory, run the structural walk lint (see Walk lint).
 
 Use protected branches, current required CI results, independent code-owner approval, and deployment checks in your forge. PR creation and review findings do not prove deployment. Retain deployed revision, deployment result, and rollback references in the deployment system. Close the run and strip only when review/rework is finished.
 
 Maintenance is optional intake, not a required completion stage. Enable it only after defining metric-specific thresholds, deduplication, cooldowns, and run limits. Alerts create drafts for service-owner triage, never fabricated approvals.
+
+## Walk lint
+
+```sh
+python3 _system/scripts/sdlc.py walk [--json]
+```
+
+A read-only, deterministic check of the structural preconditions of the ICM walk test: an agent with no memory should orient, act, and report status from the files alone. No network, no model, and it writes nothing. It checks: W1 the `AGENTS.md` entry file (router markers present, at most 60 lines outside generated blocks); W2 backticked `_system/`, `_shared/`, `stages/`, `.tink/`, `.agents/` pointers in the router and stage contracts resolve (`runs/` paths are exempt); W3 each stage contract names Inputs, Output, and a human Gate; W4 estimated context tokens per stage (warn above 8000, fail above 16000); W5 every `*-skillset` name has a pin and every pin is named; W6 `status.sh` runs for every run; W7 the compiled `tink:rules` block is current (`tink use <name> --check`, skipped when `tink` is absent).
+
+This is structural. It cannot prove that a cold agent can actually orient; a real walk by a fresh agent stays the test. A `tink:rules` block written by `tink use` (delimited by `<!-- tink:rules begin ... -->` and `<!-- tink:rules end -->`) is allowed router payload up to 8192 bytes, a deliberate divergence from ICM's rule that the router holds no content; any other content in `AGENTS.md` is bounded by the 60-line rule. Exit 0 when nothing fails (warnings do not fail), 1 when a check fails, 2 for usage errors.
 
 ## Installation and migration
 
