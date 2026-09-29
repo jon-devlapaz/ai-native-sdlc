@@ -13,7 +13,7 @@ Gate: verification passes on current evidence and a human reviewer accepts the
 result; a green local run alone is not release approval.
 
 Failures return to stage 03. Incorrect reproduction tests require independent
-parse and a replacement run; do not weaken assertions to obtain green output.
+review and a replacement run; do not weaken assertions to obtain green output.
 Local locking detects changes. Strict enforcement requires trusted CI with an
 independently retrieved baseline and protected runner/policy, as in `_system/SDLC.md`.
 

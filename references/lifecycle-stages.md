@@ -10,7 +10,7 @@ own outputs and gates; this index does not duplicate them.
 | Design | `stages/02-design/CONTEXT.md` |
 | Implementation planning and execution | `stages/03-build/CONTEXT.md` |
 | Verification and failed-check recovery | `stages/04-test/CONTEXT.md` |
-| Parse and external release gates | `stages/05-deploy/CONTEXT.md` |
+| Review and external release gates | `stages/05-deploy/CONTEXT.md` |
 | Optional maintenance intake | `stages/06-maintain/CONTEXT.md` |
 
 For a new run, after checking existing runs:

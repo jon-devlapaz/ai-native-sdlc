@@ -38,7 +38,7 @@ templates untouched during active runs to preserve stage contracts.
 2. **Choose the entry point.** For new work, select the profile justified by scope:
    `light` combines definition in `brief.md`; `full` separates intent, spec, and
    plan for consequential changes. Maintain the selected profile across stages so
-   that required parse gates remain enforced. Consult [stage navigation](references/lifecycle-stages.md)
+   that required review gates remain enforced. Consult [stage navigation](references/lifecycle-stages.md)
    for initialization and the active contract. Legacy drafts are not approved
    evidence; preserve them and follow repository recovery procedures.
 3. **Read the active contract.** Load its immediate inputs and requested references,
@@ -48,7 +48,7 @@ templates untouched during active runs to preserve stage contracts.
    instructions and repository policy before acting, rather than inventing an ad-hoc rule.
 4. **Execute within authority.** Use a separate worktree or clone for each
    code-writing run, keeping run artifacts inside that checkout. Record only genuine
-   human parse decisions with the CLI, including reviewer, source, and reason.
+   human review decisions with the CLI, including reviewer, source, and reason.
    Prior explicit authorization remains valid within its scope; role boundaries
    must reflect actual stakeholder input rather than fabricated sign-offs. For
    capability gaps, consult [toolchain routing](references/toolchain-routing.md).
@@ -75,7 +75,7 @@ templates untouched during active runs to preserve stage contracts.
   skill mutations. The checkout fingerprint covers tracked repository files,
   not ignored files or external services.
 - When work is rejected or inputs become stale, retain prior feedback, revise the
-  artifacts, obtain renewed parse decisions, and rerun verification. State
+  artifacts, obtain renewed review decisions, and rerun verification. State
   transitions depend on valid receipt hashes; advance status only through the CLI,
   never by hand-editing generated receipts.
 - For bug runs, demonstrate the expected failure and obtain independent acceptance
