@@ -2,40 +2,27 @@
 
 1. Load mandatory policy skills deterministically. Reuse an appropriate loaded
    skill before routing. Route only a real capability gap; ranking is evidence of
-   fit, not trust or installation authority.
-2. Constrain routing by the active SDLC stage using `--stage` or `--skillset`. Use the
-   workspace wrapper consistently for cooperating operations:
+   fit, not trust.
+2. Scope routing to the active stage's skillset and record a receipt:
    ```sh
-   python3 _system/scripts/sdlc.py skills tink-route -- --stage <stage> --json "<capability needed>"
+   tink-route --skillset <stage>-skillset --receipt runs/<slug>/skills.jsonl "<capability needed>"
    ```
-   Check the installed CLI's help and returned schema; do not assume a fixed
-   activation JSON structure. The `sdlc.py skills ... --` prefix is this scaffold's
-   wrapper; everything after `--` belongs to the installed CLI — treat the examples
-   as illustrative and confirm against `--help`. Low confidence, an ambiguous winner, or unavailable
-   routing leaves the capability unresolved; do not install an arbitrary fallback.
-3. Install only within existing user authority. When authorized:
+   The project pin `.tink/skillsets/<name>.json` scopes candidates (minus its
+   `required` disciplines), with a one-shot whole-library fallback; `--strict`
+   disables the fallback. Default behavior verifies the mount and prints the skill
+   on stdout. Exit 0 delivered, 1 no specialist skill applies, 2 could not
+   deliver or usage; on any non-zero, continue without a skill. `--pick` decides
+   only and writes nothing.
+3. Read the delivered skill before relying on it. Mounts land in the git-ignored
+   `.tink/.active/` and need no pruning; `tink-route` never rewrites
+   `.tink/skills.toml` or `.tink/skills.lock`.
+4. Preserve the receipt with the run. Keep baseline manifests under reviewed
+   dependency management and restore baseline skills through Tink:
    ```sh
-   python3 _system/scripts/sdlc.py skills tink-route -- --stage <stage> -i --ephemeral --json "<capability needed>"
    python3 _system/scripts/sdlc.py skills tink -- skill check
    ```
-   Inspect failures for partial writes before retrying. Validate the selected
-   entrypoint is inside the intended worktree's skill root, then explicitly read
-   its `SKILL.md`. JSON output and installation alone do not activate instructions.
-4. Preserve routing output, selected skill source revisions/content hashes, and
-   activation outcomes with the run. Keep baseline manifests under reviewed
-   dependency management; temporary routing must not automatically rewrite them.
-   Keep installed skills and ephemeral ledgers worktree-local. Restore baseline
-   skills through Tink rather than sharing writable symlinks.
-5. At run closure, after parse and rework, retain provenance and preparse cleanup:
-   ```sh
-   python3 _system/scripts/sdlc.py skills tink-route -- prune --dry-run
-   ```
-   Inspect the actual scope before authorized pruning through the same wrapper.
-   Avoid `--all-unpinned` for routine cleanup. Pruning can invalidate checkout
-   evidence and cannot remove instructions already loaded into agent context.
 
-The wrapper serializes cooperating calls using a local user/temp-directory lock.
-It does not make installation transactional, isolate shared home-library state,
-or coordinate direct CLI calls, different lock namespaces, or multiple hosts.
-Do not call an install atomic or infer cleanup guarantees beyond the installed
-CLI's documented behavior and observed dry-run result.
+The `sdlc.py skills tink --` wrapper serializes cooperating `tink` operations
+using a local user/temp-directory lock. It does not isolate shared home-library
+state, or coordinate direct CLI calls, different lock namespaces, or multiple hosts.
+It does not wrap `tink-route`.

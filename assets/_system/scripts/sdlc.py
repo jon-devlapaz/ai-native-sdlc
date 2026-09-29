@@ -517,10 +517,8 @@ def status(args):
     print('Deployment: not inferred from local review files; consult the deployment system.')
 
 
-# tink-route uses exit 1 to mean "no skill applies" — a successful no-op, not a failure.
 TOOL_ACCEPTABLE_CODES = {
     'tink': (0,),
-    'tink-route': (0, 1),
 }
 
 
@@ -528,7 +526,7 @@ def skills(args):
     allowed = TOOL_ACCEPTABLE_CODES.get(args.tool)
     if allowed is None:
         raise ValueError(f'Unknown skill tool: {args.tool!r}')
-    # All cooperating worktrees on this host share a mutation lock. This is not
+    # All cooperating worktrees on this host share a tink mutation lock. This is not
     # a security boundary and cannot coordinate tools invoked outside this wrapper.
     for relative in ['.agents', '.agents/skills', '.tink']:
         target = ROOT / relative
@@ -538,7 +536,7 @@ def skills(args):
     if arguments[:1] == ['--']:
         arguments.pop(0)
     if not arguments:
-        raise ValueError('Supply the authorized Tink/router operation.')
+        raise ValueError('Supply the authorized Tink operation.')
     lock = tink_lock_path(ROOT)
     with locked(lock):
         result = subprocess.run([args.tool, *arguments], cwd=ROOT)

@@ -61,18 +61,17 @@ This detects local changes, not adversarial tampering. Strict protection require
 
 ## Skills and concurrency
 
-Commit baseline `.tink/skills.toml` and `.tink/skills.lock` when Tink has created them through an authorized operation. Restore into each worktree through Tink; do not copy writable directories by symlink. Lockfile updates are reviewed dependency changes, not an automatic consequence of routing.
+Commit baseline `.tink/skills.toml` and `.tink/skills.lock` when Tink has created them through an authorized operation. Restore into each worktree through Tink; do not copy writable directories by symlink. Lockfile updates are reviewed dependency changes.
 
-Load mandatory skills deterministically. Route only genuine capability gaps; allow abstention. Run authorized operations through the wrapper:
+Load mandatory skills deterministically. Route only genuine capability gaps with `tink-route`; allow abstention. `tink-route` does not mutate project skills: it mounts the delivered skill into the git-ignored `.tink/.active/`, prints it on stdout, and needs no cleanup. Run `tink` mutations through the wrapper:
 
 ```sh
-python3 _system/scripts/sdlc.py skills tink-route -- --json 'Capability needed'
 python3 _system/scripts/sdlc.py skills tink -- skill check
 ```
 
-The wrapper serializes cooperating Tink/router operations across this host and rejects symlinked skill state. It does not grant mutation authority, install anything automatically, isolate a shared home library, or coordinate direct CLI calls outside the wrapper. Command shapes after `--` belong to the installed Tink/router CLI; confirm them against that CLI's `--help` — the examples here are illustrative, not a fixed activation schema. Use it consistently; cross-host shared storage requires external coordination.
+The wrapper covers `tink` operations only. It serializes them across this host and rejects symlinked skill state. It does not grant mutation authority, isolate a shared home library, or coordinate direct CLI calls outside the wrapper. Command shapes after `--` belong to the installed Tink CLI; confirm them against `tink --help`. Cross-host shared storage requires external coordination.
 
-For `--install --ephemeral`, preserve routing JSON, source revisions/content hashes, and activation outcomes with the run. Validate selected paths, run integrity checks, and explicitly read the selected SKILL.md. Do not assume JSON output activates it. Low confidence or unavailable routing leaves the capability unresolved. Keep ephemeral state worktree-local. Prune only after run closure, beginning with `prune --dry-run`; avoid `--all-unpinned` for routine cleanup. Cleanup cannot unload already-read instructions.
+Preserve the `tink-route` receipt with the run. Read the delivered skill before relying on it. Low confidence or a failed delivery leaves the capability unresolved.
 
 ## Stage skills
 
@@ -81,10 +80,10 @@ Each stage has a skillset pin committed at `.tink/skillsets/<name>-skillset.json
 ```sh
 tink library fetch .tink/skillsets/<name>-skillset.json    # once per machine/library, after reviewing the pin
 tink use <name>-skillset --snapshot runs/<slug>/<stage-dir>  # at stage open, then start a NEW session
-tink-route --use --skillset <name>-skillset --receipt runs/<slug>/skills.jsonl "<what you need>"
+tink-route --skillset <name>-skillset --receipt runs/<slug>/skills.jsonl "<what you need>"
 ```
 
-`required` lists the disciplines that `tink use` compiles into `AGENTS.md` at stage open, so each stage gets a fresh session that re-reads it. The starting set is every `principle-*` member of the pin; it is provisional and to be tuned later by ablation. Capability skills come only through `tink-route --use` for genuine gaps; exit 1 or 2 means continue without a skill.
+`required` lists the disciplines that `tink use` compiles into `AGENTS.md` at stage open, so each stage gets a fresh session that re-reads it. The starting set is every `principle-*` member of the pin; it is provisional and to be tuned later by ablation. Capability skills come only through `tink-route` for genuine gaps (stdout is the skill); exit 1 or 2 means continue without a skill.
 
 `seed-me` is human-invoked and belongs to no stage skillset. Install it separately with `tink skill add jon-devlapaz/tink-skills --skill seed-me`. Its confirmed pre-intent is the input to 01-plan: give the agent that file's path in the stage-1 launch prompt.
 

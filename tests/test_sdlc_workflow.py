@@ -273,9 +273,6 @@ class WorkflowTests(unittest.TestCase):
         cases = [
             ('tink', 0, False),
             ('tink', 1, True),
-            ('tink-route', 0, False),
-            ('tink-route', 1, False),
-            ('tink-route', 2, True),
         ]
         with patch.object(workflow, 'ROOT', self.root), patch.object(workflow.tempfile, 'gettempdir', return_value=str(self.root)):
             for tool, returncode, should_raise in cases:
@@ -293,11 +290,13 @@ class WorkflowTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         workflow.skills(args)
 
-    def test_skill_wrapper_cli_normalizes_unrouted(self):
+    def test_skill_wrapper_cli_rejects_tink_route(self):
         argv = ['sdlc.py', 'skills', 'tink-route', '--', 'check']
-        run = subprocess.CompletedProcess(['tink-route', 'check'], 1)
-        with patch.object(workflow, 'ROOT', self.root), patch.object(workflow.tempfile, 'gettempdir', return_value=str(self.root)), patch.object(workflow.subprocess, 'run', return_value=run), patch.object(workflow.sys, 'argv', argv):
-            self.assertEqual(workflow.main(), 0)
+        with patch.object(workflow, 'ROOT', self.root), patch.object(workflow.subprocess, 'run') as run, patch.object(workflow.sys, 'argv', argv):
+            with self.assertRaises(SystemExit) as caught:
+                workflow.main()
+        self.assertEqual(caught.exception.code, 2)
+        run.assert_not_called()
 
     def test_candidate_mutation_during_check(self):
         self.create_ready()
