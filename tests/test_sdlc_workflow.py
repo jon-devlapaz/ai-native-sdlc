@@ -485,9 +485,9 @@ class WorkflowTests(unittest.TestCase):
         (self.root / 'code.py').write_text('changed after mark')
         out = self.cli('status', 'example')
         self.assertIn('Checklist: 1/3 passed', out)
-        self.assertIn('  - alpha: passed on an older candidate (re-mark after changes)', out)
+        self.assertIn('  - alpha: attested before the latest changes; re-check it only if the change affects it', out)
         self.mark('alpha')
-        self.assertNotIn('older candidate', self.cli('status', 'example'))
+        self.assertNotIn('attested before the latest changes', self.cli('status', 'example'))
 
     def test_status_survives_snapshot_failure(self):
         self.checklist_ready()
@@ -517,7 +517,7 @@ class WorkflowTests(unittest.TestCase):
         self.mark('alpha')
         (self.root / 'code.py').write_text('changed after mark')
         self.cli('verify', 'example')
-        self.assertIn('older candidate', self.cli('status', 'example'))
+        self.assertIn('attested before the latest changes', self.cli('status', 'example'))
 
     def test_checklist_change_stales_verification(self):
         self.checklist_ready()
@@ -742,6 +742,89 @@ class WorkflowTests(unittest.TestCase):
         decision.write_text(json.dumps(record))
         self.checklist_path().unlink()
         self.assertIn('Checklist: none (legacy run)', self.cli('status', 'example'))
+
+    LOG_HINT = ' (output: runs/example/04-test/output/test-log.md)'
+
+    def test_clarity_configured_check_failure_points_to_log(self):
+        self.create_ready()
+        self.config([{'argv': ['python3', '-c', 'raise SystemExit(3)'], 'timeout_seconds': 5}])
+        out = self.cli('verify', 'example', ok=False)
+        self.assertIn("Check failed (3): ['python3', '-c', 'raise SystemExit(3)']" + self.LOG_HINT, out)
+        self.assertTrue(self.receipt()['error'].endswith(self.LOG_HINT))
+        self.assertTrue((self.root / 'runs/example/04-test/output/test-log.md').is_file())
+
+    def test_clarity_configured_check_timeout_and_missing_executable_point_to_log(self):
+        self.create_ready()
+        for argv, timeout in [(['python3', '-c', 'import time; time.sleep(3)'], 1), (['missing-executable-sdlc'], 1)]:
+            with self.subTest(argv=argv):
+                self.config([{'argv': argv, 'timeout_seconds': timeout}])
+                out = self.cli('verify', 'example', ok=False)
+                self.assertIn(self.LOG_HINT, out)
+                self.assertTrue(self.receipt()['error'].endswith(self.LOG_HINT))
+
+    def test_clarity_checklist_check_failures_point_to_log(self):
+        for kwargs in [{'code': 'raise SystemExit(1)'}, {'code': 'import time; time.sleep(3)', 'timeout': 1}]:
+            with self.subTest(**kwargs):
+                shutil.rmtree(self.root / 'runs', ignore_errors=True)
+                self.checked_ready(**kwargs)
+                out = self.cli('verify', 'example', ok=False)
+                self.assertIn('Checklist check failed: gate' + self.LOG_HINT, out)
+                self.assertEqual(self.receipt()['error'], 'Checklist check failed: gate' + self.LOG_HINT)
+        shutil.rmtree(self.root / 'runs', ignore_errors=True)
+        self.cli('new', 'example')
+        self.write_checklist([self.item('gate', check={'argv': ['missing-executable-sdlc'], 'timeout_seconds': 1})])
+        self.approve()
+        self.assertIn('Checklist check failed: gate' + self.LOG_HINT, self.cli('verify', 'example', ok=False))
+
+    def test_clarity_incomplete_checklist_points_to_mark(self):
+        self.checklist_ready(('alpha', 'beta'))
+        hint = ' (mark them with: sdlc.py mark example <id> passed --evidence "...")'
+        out = self.cli('verify', 'example', ok=False)
+        self.assertIn('Checklist incomplete: alpha, beta' + hint, out)
+        self.assertNotIn('test-log.md', out)
+        self.assertEqual(self.receipt()['error'], 'Checklist incomplete: alpha, beta' + hint)
+
+    def test_clarity_status_older_candidate_wording(self):
+        self.checklist_ready()
+        self.mark('alpha')
+        (self.root / 'code.py').write_text('changed after mark')
+        out = self.cli('status', 'example')
+        self.assertIn('  - alpha: attested before the latest changes; re-check it only if the change affects it', out)
+        self.assertNotIn('older candidate', out)
+        self.assertNotIn('re-mark', out)
+        self.assertIn('Checklist: 1/1 passed (0 proven by check, 1 attested)', out)
+
+    def test_clarity_empty_checklist_approval_says_where_to_edit(self):
+        self.cli('new', 'example')
+        out = self.cli('decide', 'example', '3', 'approved', '--reviewer', 'h', '--source', 's', '--reason', 'r', ok=False)
+        self.assertIn('Define at least one checklist item before approval. Edit runs/example/checklist.json '
+                      '(each item needs id, description, verify; optional check).', out)
+
+    def test_clarity_mark_errors_name_valid_ids_and_verify(self):
+        self.checked_ready(('gate',), ('note', 'other'))
+        out = self.mark('nope', ok=False)
+        self.assertIn('Unknown checklist item: nope (items: gate, note, other)', out)
+        out = self.mark('gate', ok=False)
+        self.assertIn('item gate has an executable check; run verify to prove it '
+                      '(its check runs during: _system/scripts/verify.sh example)', out)
+
+    def test_clarity_bad_subcommand_prints_short_error(self):
+        result = subprocess.run(['python3', str(self.root / '_system/scripts/sdlc.py'), 'bogus'],
+                                cwd='/', capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stdout, '')
+        lines = result.stderr.strip().splitlines()
+        self.assertEqual(len(lines), 2, result.stderr)
+        self.assertTrue(lines[0].startswith('sdlc.py: error: '), lines[0])
+        self.assertEqual(lines[1], 'Commands: new, status, decide, verify, mark, lock-tests, skills. See _system/SDLC.md.')
+        self.assertNotIn('usage:', result.stderr)
+
+    def test_clarity_missing_argument_prints_short_error(self):
+        result = subprocess.run(['python3', str(self.root / '_system/scripts/sdlc.py'), 'verify'],
+                                cwd='/', capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('sdlc.py: error: ', result.stderr)
+        self.assertNotIn('usage:', result.stderr)
 
 
 def workflow_tree(root):
