@@ -12,9 +12,8 @@ Gate: independently authenticated code-owner approval and current required CI in
 the forge. Local parse files cannot approve a release. Consult the deployment
 system for the deployed revision, health result, and rollback reference.
 
-Prune ephemeral skills only at run closure after rework is finished, through the
-serialized wrapper and a dry-run first. Preserve provenance before cleanup.
-See `_system/SDLC.md`; avoid `--all-unpinned` for routine cleanup.
+Skill mounts land in the git-ignored `.tink/.active/`; nothing to clean up at run closure.
+See `_system/SDLC.md`.
 
 ## Skills
 
@@ -23,5 +22,5 @@ Skillset: `deployment-skillset` (pin: `.tink/skillsets/deployment-skillset.json`
   `tink library fetch .tink/skillsets/deployment-skillset.json`
 - At stage open, compile the required disciplines, then start a NEW session so
   `AGENTS.md` is re-read: `tink use deployment-skillset --snapshot runs/<slug>/05-deploy`
-- For a capability gap: `tink-route --use --skillset deployment-skillset --receipt runs/<slug>/skills.jsonl "<what you need>"`
-  (exit 1 or 2 means continue without a skill).
+- For a capability gap: `tink-route --skillset deployment-skillset --receipt runs/<slug>/skills.jsonl "<what you need>"`
+  (prints the skill on stdout; exit 1 or 2 means continue without a skill).

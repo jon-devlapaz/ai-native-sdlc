@@ -21,5 +21,5 @@ Skillset: `planning-skillset` (pin: `.tink/skillsets/planning-skillset.json`).
   `tink library fetch .tink/skillsets/planning-skillset.json`
 - At stage open, compile the required disciplines, then start a NEW session so
   `AGENTS.md` is re-read: `tink use planning-skillset --snapshot runs/<slug>/01-plan`
-- For a capability gap: `tink-route --use --skillset planning-skillset --receipt runs/<slug>/skills.jsonl "<what you need>"`
-  (exit 1 or 2 means continue without a skill).
+- For a capability gap: `tink-route --skillset planning-skillset --receipt runs/<slug>/skills.jsonl "<what you need>"`
+  (prints the skill on stdout; exit 1 or 2 means continue without a skill).

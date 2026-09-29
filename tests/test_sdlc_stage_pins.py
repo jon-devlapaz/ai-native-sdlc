@@ -60,7 +60,7 @@ class StagePinTests(unittest.TestCase):
         files = json.loads((ASSETS / 'manifest.json').read_text())['files']
         for name in STAGES.values():
             self.assertIn(f'.tink/skillsets/{name}.json', files)
-        self.assertEqual(json.loads((ASSETS / 'manifest.json').read_text())['version'], '1.2.0')
+        self.assertEqual(json.loads((ASSETS / 'manifest.json').read_text())['version'], '1.3.0')
 
     def test_no_gitignore_hides_pins(self):
         self.assertFalse(list(ASSETS.rglob('.gitignore')))
@@ -110,7 +110,20 @@ class StagePinTests(unittest.TestCase):
                 self.assertIn(f'tink library fetch .tink/skillsets/{name}.json', text)
                 self.assertRegex(text, rf'tink use {name} --snapshot runs/<slug>/{stage}\b')
                 self.assertIn('NEW session', text)
-                self.assertIn(f'tink-route --use --skillset {name} --receipt runs/<slug>/skills.jsonl', text)
+                self.assertIn(f'tink-route --skillset {name} --receipt runs/<slug>/skills.jsonl "<what you need>"', text)
+
+    def test_no_removed_route_flow_in_shipped_files(self):
+        banned = ['--install', '--ephemeral', '--prune', 'tink-route --use', '--stage-only', 'ephemeral.json']
+        files = [p for p in ASSETS.rglob('*') if p.is_file()]
+        files += [p for p in ROOT.glob('references/**/*') if p.is_file()]
+        files += [ROOT / 'SKILL.md', ROOT / 'README.md']
+        for path in files:
+            if '__pycache__' in path.parts:
+                continue
+            text = path.read_text(errors='ignore')
+            for needle in banned:
+                with self.subTest(path=str(path.relative_to(ROOT)), needle=needle):
+                    self.assertNotIn(needle, text)
 
     def test_maintain_marked_optional(self):
         text = (ASSETS / 'stages/06-maintain/CONTEXT.md').read_text()
@@ -120,7 +133,7 @@ class StagePinTests(unittest.TestCase):
         text = (ASSETS / '_system/SDLC.md').read_text()
         self.assertEqual(text.count('## Stage skills'), 1)
         for needle in ['seed-me', 'tink skill add jon-devlapaz/tink-skills --skill seed-me',
-                       'tink library fetch', 'tink use', 'tink-route --use', '.tink/skillsets/',
+                       'tink library fetch', 'tink use', 'tink-route --skillset', '.tink/skillsets/',
                        'required', 'AGENTS.md', 'pre-intent', 'optional']:
             self.assertIn(needle, text)
 

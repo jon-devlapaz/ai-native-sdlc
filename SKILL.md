@@ -88,4 +88,4 @@ templates untouched during active runs to preserve stage contracts.
   before retrying; an operation's failure does not establish that nothing changed.
 - Monitoring and deployment are external integrations, not provisioned capabilities.
   Follow the maintenance contract only when relevant to an explicitly configured
-  intake. Prune ephemeral skills only at run closure after parse and rework.
+  intake.

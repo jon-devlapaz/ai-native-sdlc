@@ -21,5 +21,5 @@ Skillset: `maintenance-skillset` (pin: `.tink/skillsets/maintenance-skillset.jso
   `tink library fetch .tink/skillsets/maintenance-skillset.json`
 - At stage open, compile the required disciplines, then start a NEW session so
   `AGENTS.md` is re-read: `tink use maintenance-skillset --snapshot runs/<slug>/06-maintain`
-- For a capability gap: `tink-route --use --skillset maintenance-skillset --receipt runs/<slug>/skills.jsonl "<what you need>"`
-  (exit 1 or 2 means continue without a skill).
+- For a capability gap: `tink-route --skillset maintenance-skillset --receipt runs/<slug>/skills.jsonl "<what you need>"`
+  (prints the skill on stdout; exit 1 or 2 means continue without a skill).
