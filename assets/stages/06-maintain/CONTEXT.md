@@ -13,3 +13,13 @@ systems in its brief or intent. Repeated alerts update the existing incident
 instead of spawning duplicate work.
 Gate: service owner triages, dismisses, schedules, or approves the draft through
 the normal definition gate. Telemetry never fabricates approval or releases code.
+
+## Skills
+
+Skillset: `maintenance-skillset` (pin: `.tink/skillsets/maintenance-skillset.json`). This stage is optional, like maintenance itself; skip this section unless you run it.
+- Once per machine/library, after reviewing the pin (it selects exact upstream code):
+  `tink library fetch .tink/skillsets/maintenance-skillset.json`
+- At stage open, compile the required disciplines, then start a NEW session so
+  `AGENTS.md` is re-read: `tink use maintenance-skillset --snapshot runs/<slug>/06-maintain`
+- For a capability gap: `tink-route --use --skillset maintenance-skillset --receipt runs/<slug>/skills.jsonl "<what you need>"`
+  (exit 1 or 2 means continue without a skill).

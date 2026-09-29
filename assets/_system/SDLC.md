@@ -74,6 +74,22 @@ The wrapper serializes cooperating Tink/router operations across this host and r
 
 For `--install --ephemeral`, preserve routing JSON, source revisions/content hashes, and activation outcomes with the run. Validate selected paths, run integrity checks, and explicitly read the selected SKILL.md. Do not assume JSON output activates it. Low confidence or unavailable routing leaves the capability unresolved. Keep ephemeral state worktree-local. Prune only after run closure, beginning with `prune --dry-run`; avoid `--all-unpinned` for routine cleanup. Cleanup cannot unload already-read instructions.
 
+## Stage skills
+
+Each stage has a skillset pin committed at `.tink/skillsets/<name>-skillset.json`: 01-plan `planning-skillset`, 02-design `design-skillset`, 03-build `build-skillset`, 04-test `testing-skillset`, 05-deploy `deployment-skillset`, 06-maintain `maintenance-skillset`. A pin selects exact upstream code (`source`, `revision`, `sourceRoot`, `members`), so review pin changes like a lockfile: a pin change is a supply-chain change.
+
+```sh
+tink library fetch .tink/skillsets/<name>-skillset.json    # once per machine/library, after reviewing the pin
+tink use <name>-skillset --snapshot runs/<slug>/<stage-dir>  # at stage open, then start a NEW session
+tink-route --use --skillset <name>-skillset --receipt runs/<slug>/skills.jsonl "<what you need>"
+```
+
+`required` lists the disciplines that `tink use` compiles into `AGENTS.md` at stage open, so each stage gets a fresh session that re-reads it. The starting set is every `principle-*` member of the pin; it is provisional and to be tuned later by ablation. Capability skills come only through `tink-route --use` for genuine gaps; exit 1 or 2 means continue without a skill.
+
+`seed-me` is human-invoked and belongs to no stage skillset. Install it separately with `tink skill add jon-devlapaz/tink-skills --skill seed-me`. Its confirmed pre-intent is the input to 01-plan: give the agent that file's path in the stage-1 launch prompt.
+
+`tink use` and `tink-route` are optional integrations; runs work without them.
+
 ## Recovery and release
 
 Creation validates names and publishes a complete run atomically. Each run has one writer at a time. Busy or interrupted operations fail with the lock path. After a crash, confirm no process owns the operation before removing its lock directory, then rerun. Status is derived from receipts; do not hand-edit generated records.

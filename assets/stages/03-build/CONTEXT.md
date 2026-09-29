@@ -15,3 +15,13 @@ For bug fixes, reproduce the expected failure first, obtain independent acceptan
 and record protected test inputs with `sdlc.py lock-tests`. Implement and verify in
 a loop with stage 04. Update the plan when scope changes and renew stale decisions.
 Mark items only with `sdlc.py mark <slug> <item-id> passed|failed --evidence <text>`; never hand-edit receipts.
+
+## Skills
+
+Skillset: `build-skillset` (pin: `.tink/skillsets/build-skillset.json`).
+- Once per machine/library, after reviewing the pin (it selects exact upstream code):
+  `tink library fetch .tink/skillsets/build-skillset.json`
+- At stage open, compile the required disciplines, then start a NEW session so
+  `AGENTS.md` is re-read: `tink use build-skillset --snapshot runs/<slug>/03-build`
+- For a capability gap: `tink-route --use --skillset build-skillset --receipt runs/<slug>/skills.jsonl "<what you need>"`
+  (exit 1 or 2 means continue without a skill).

@@ -13,3 +13,13 @@ Failures return to stage 03. Incorrect reproduction tests require independent
 parse and a replacement run; do not weaken assertions to obtain green output.
 Local locking detects changes. Strict enforcement requires trusted CI with an
 independently retrieved baseline and protected runner/policy, as in `_system/SDLC.md`.
+
+## Skills
+
+Skillset: `testing-skillset` (pin: `.tink/skillsets/testing-skillset.json`).
+- Once per machine/library, after reviewing the pin (it selects exact upstream code):
+  `tink library fetch .tink/skillsets/testing-skillset.json`
+- At stage open, compile the required disciplines, then start a NEW session so
+  `AGENTS.md` is re-read: `tink use testing-skillset --snapshot runs/<slug>/04-test`
+- For a capability gap: `tink-route --use --skillset testing-skillset --receipt runs/<slug>/skills.jsonl "<what you need>"`
+  (exit 1 or 2 means continue without a skill).
