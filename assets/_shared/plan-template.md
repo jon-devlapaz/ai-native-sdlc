@@ -21,4 +21,4 @@ Potential regressions or dependencies to monitor.
 - Verification command (`make test`, `npm test`, etc.):
 
 ## 5. Implementation Checklist
-Lives in `checklist.json` (definitions with id/description/verify); mark items only with `sdlc.py mark`.
+Lives in `checklist.json` (definitions with id/description/verify); mark items only with `sdlc.py mark`. Give an item a `check` (argv + timeout) whenever an automated proof exists; `verify` then runs it and no mark is needed.

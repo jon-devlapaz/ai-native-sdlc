@@ -3,6 +3,7 @@
 Inputs: current approved spec for full runs, or combined brief for light runs.
 Output: `runs/<slug>/03-build/output/plan.md` for full runs, the approved checklist definitions
 in `runs/<slug>/checklist.json` for both profiles, and code in an isolated worktree/clone.
+Items should carry a `check` whenever an automated proof exists; `verify` runs it and no mark is needed.
 
 Inspect code, write the plan, and obtain the actual stage 3 human acceptance before
 implementation. An explicit user instruction to execute a reviewed proposal is

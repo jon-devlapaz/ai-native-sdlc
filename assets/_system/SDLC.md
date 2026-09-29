@@ -25,7 +25,11 @@ Full runs record decisions for stages 1, 2, and 3 in order. Markdown stays edita
 
 ## Checklist
 
-`runs/<slug>/checklist.json` holds item definitions only: `{"schema":1,"items":[{"id","description","verify"}]}`. Definitions are approved scope: stage 3 cannot be approved with zero or invalid items, and changing them makes that approval stale. Agents record progress with `sdlc.py mark <run> <item-id> passed|failed --evidence <text>`, which needs a current stage 3 approval and appends a receipt under `marks/`; the latest receipt per item wins. Never hand-edit receipts or add status fields to the definitions. `verify` requires every item's latest mark to be `passed`. Status flags a passed item marked on an older candidate; re-mark after changes. Runs without `checklist.json` are legacy and unaffected.
+`runs/<slug>/checklist.json` holds item definitions only: `{"schema":1,"items":[{"id","description","verify","check"?}]}`. Definitions are approved scope: stage 3 cannot be approved with zero or invalid items, and changing them makes that approval stale. Never hand-edit receipts or add status fields to the definitions.
+
+An item may carry `check`: `{"argv":[...],"timeout_seconds":N}`, validated like `verification.json` checks. `verify` runs every item's `check` in the repository root after the configured checks, logging to `test-log.md`; a failure or timeout fails verification (`Checklist check failed: <id>`). A passing check proves the item in that verify run and needs no mark, so `mark` is refused for checked items. Review the commands at approval: they execute like verification checks and are bound to the approval digest, so editing one makes approval stale.
+
+An item without `check` is attested. Agents record it with `sdlc.py mark <run> <item-id> passed|failed --evidence <text>`, which needs a current stage 3 approval and appends a receipt under `marks/`; the latest receipt per item wins, and `verify` requires it to be `passed`. Attested marks are self-reported claims: independent review should challenge them. Status flags an attested item marked on an older candidate; re-mark after changes. The passed verification receipt records each item as `proven` or `attested`. Runs without `checklist.json` are legacy and unaffected; status reports a checklist deleted after approval as MISSING.
 
 ## Implementation and verification
 

@@ -20,6 +20,7 @@ import uuid
 ROOT = Path(__file__).resolve().parents[2]
 ITEM_ID = re.compile(r'[a-z0-9][a-z0-9-]{0,39}')
 ITEM_KEYS = {'id', 'description', 'verify'}
+CHECK_KEYS = {'argv', 'timeout_seconds'}
 ARTIFACTS = ['01-plan/output/intent.md', '02-design/output/spec.md', '03-build/output/plan.md']
 
 
@@ -100,6 +101,20 @@ def require_run(path):
     return read_json(path / 'run.json')
 
 
+def validate_check(check, exact=False):
+    """Shared argv/timeout rules for verification.json checks and checklist item checks."""
+    if not isinstance(check, dict):
+        raise ValueError('A check must be an object with argv and timeout_seconds.')
+    if exact and set(check) != CHECK_KEYS:
+        raise ValueError('A check must have exactly the keys argv, timeout_seconds.')
+    argv = check.get('argv')
+    if not isinstance(argv, list) or not argv or not all(isinstance(a, str) and a for a in argv):
+        raise ValueError('Every check requires a nonempty argv array.')
+    timeout = check.get('timeout_seconds')
+    if not isinstance(timeout, int) or isinstance(timeout, bool) or timeout <= 0:
+        raise ValueError('Every check requires a positive timeout_seconds.')
+
+
 def validate_checklist(value):
     """Return the item list of a checklist definition, or raise ValueError naming the problem."""
     if not isinstance(value, dict) or set(value) != {'schema', 'items'}:
@@ -112,8 +127,8 @@ def validate_checklist(value):
     seen = set()
     for index, item in enumerate(items):
         name = item.get('id') if isinstance(item, dict) and isinstance(item.get('id'), str) else f'#{index + 1}'
-        if not isinstance(item, dict) or set(item) != ITEM_KEYS:
-            raise ValueError(f'Checklist item {name} must have exactly the keys id, description, verify.')
+        if not isinstance(item, dict) or not ITEM_KEYS <= set(item) <= ITEM_KEYS | {'check'}:
+            raise ValueError(f'Checklist item {name} must have the keys id, description, verify, and optionally check.')
         if not ITEM_ID.fullmatch(item['id']):
             raise ValueError(f'Checklist item {name} has an invalid id (use [a-z0-9][a-z0-9-]{{0,39}}).')
         if item['id'] in seen:
@@ -122,6 +137,11 @@ def validate_checklist(value):
         for key in ('description', 'verify'):
             if not isinstance(item[key], str) or not item[key].strip():
                 raise ValueError(f'Checklist item {name} needs a nonempty {key}.')
+        if 'check' in item:
+            try:
+                validate_check(item['check'], exact=True)
+            except ValueError as error:
+                raise ValueError(f'Checklist item {name} has an invalid check: {error}') from error
     return items
 
 
@@ -237,11 +257,7 @@ def checks_config():
     if not isinstance(config.get('require_tink'), bool) or not isinstance(checks, list) or not checks:
         raise ValueError('Verification requires an explicit Tink policy and a nonempty check list.')
     for check in checks:
-        argv = check.get('argv')
-        if not isinstance(argv, list) or not argv or not all(isinstance(a, str) and a for a in argv):
-            raise ValueError('Every check requires a nonempty argv array.')
-        if not isinstance(check.get('timeout_seconds'), int) or check['timeout_seconds'] <= 0:
-            raise ValueError('Every check requires a positive timeout_seconds.')
+        validate_check(check)
     return config
 
 
@@ -304,6 +320,7 @@ def decide(args):
                     raise ValueError(f'Approve stage {stage} first.')
         write_json(path / 'decisions' / f'{args.stage}-{time.time_ns()}-{uuid.uuid4().hex}.json', {
             'inputs': inputs(path, args.stage), 'decision': args.decision,
+            **({'has_checklist': True} if args.stage == 3 and (path / 'checklist.json').exists() else {}),
             'reviewer': args.reviewer, 'source': args.source, 'reason': args.reason})
     print('Recorded local review receipt. Release approval must be independently authenticated by the forge.')
 
@@ -320,6 +337,7 @@ def verify(args):
             ready(path)
             config = checks_config()
             before = evidence_inputs(path)
+            items = load_checklist(path)
             checks = list(config['checks'])
             if config['require_tink']:
                 checks.insert(0, {'argv': ['tink', 'skill', 'check'], 'timeout_seconds': 120})
@@ -331,16 +349,32 @@ def verify(args):
                                             timeout=check['timeout_seconds'])
                     if result.returncode:
                         raise ValueError(f"Check failed ({result.returncode}): {check['argv']}")
+                for item in items or []:
+                    if 'check' not in item:
+                        continue
+                    check = item['check']
+                    log.write(f"\n# checklist item {item['id']}\n$ {json.dumps(check['argv'])}\n")
+                    log.flush()
+                    try:
+                        result = subprocess.run(check['argv'], cwd=ROOT, stdout=log, stderr=subprocess.STDOUT,
+                                                timeout=check['timeout_seconds'])
+                    except (subprocess.TimeoutExpired, OSError) as error:
+                        log.write(f'{type(error).__name__}: {error}\n')
+                        raise ValueError(f"Checklist check failed: {item['id']}") from error
+                    if result.returncode:
+                        raise ValueError(f"Checklist check failed: {item['id']}")
             if before != evidence_inputs(path):
                 raise ValueError('Candidate or inputs changed during verification; rerun against stable inputs.')
             ready(path)
-            items = load_checklist(path)
+            proof = {}
             if items is not None:
                 marked = marks(path, items)
-                missing = [item['id'] for item in items if marked.get(item['id'], {}).get('result') != 'passed']
+                attested = [item['id'] for item in items if 'check' not in item]
+                missing = [i for i in attested if marked.get(i, {}).get('result') != 'passed']
                 if missing:
                     raise ValueError(f"Checklist incomplete: {', '.join(missing)}")
-            write_json(receipt, {'result': 'passed', **before, 'log': digest((output / 'test-log.md').read_bytes())})
+                proof = {'checklist_items': {item['id']: 'proven' if 'check' in item else 'attested' for item in items}}
+            write_json(receipt, {'result': 'passed', **before, **proof, 'log': digest((output / 'test-log.md').read_bytes())})
         except Exception as error:
             write_json(receipt, {'result': 'failed', 'error': str(error)})
             raise
@@ -377,6 +411,8 @@ def mark(args):
             raise ValueError('Run has no checklist.json (legacy run); nothing to mark.')
         if args.item not in {item['id'] for item in items}:
             raise ValueError(f'Unknown checklist item: {args.item}')
+        if any(item['id'] == args.item and 'check' in item for item in items):
+            raise ValueError(f'item {args.item} has an executable check; run verify to prove it')
         if gate(path, 3) != 'approved':
             raise ValueError('Stage 3 needs a current approval receipt before items can be marked.')
         now = time.time_ns()
@@ -386,14 +422,19 @@ def mark(args):
     print(f'Recorded {args.result} receipt for {args.item}.')
 
 
-def print_checklist(path):
+def print_checklist(path, verified=False):
     try:
         items = load_checklist(path)
     except ValueError as error:
         print(f'Checklist: invalid ({error})')
         return
     if items is None:
-        print('Checklist: none (legacy run)')
+        decision = latest(path, 3)
+        print('Checklist: MISSING (deleted after approval)' if decision and decision.get('has_checklist')
+              else 'Checklist: none (legacy run)')
+        return
+    if not items:
+        print('Checklist: no items defined')
         return
     try:
         tree = snapshot()['tree']
@@ -404,7 +445,12 @@ def print_checklist(path):
     passed = 0
     for item in items:
         record = marked.get(item['id'])
-        if record is None:
+        if 'check' in item:
+            if verified:
+                passed += 1
+            else:
+                lines.append(f"  - {item['id']}: pending (proved by verify)")
+        elif record is None:
             lines.append(f"  - {item['id']}: pending")
         elif record['result'] != 'passed':
             lines.append(f"  - {item['id']}: failed")
@@ -412,7 +458,9 @@ def print_checklist(path):
             passed += 1
             if tree is not None and record.get('candidate') != tree:
                 lines.append(f"  - {item['id']}: passed on an older candidate (re-mark after changes)")
-    print('\n'.join([f'Checklist: {passed}/{len(items)} passed'] + lines))
+    proven = sum('check' in item for item in items)
+    summary = f'Checklist: {passed}/{len(items)} passed ({proven} proven by check, {len(items) - proven} attested)'
+    print('\n'.join([summary] + lines))
 
 
 def evidence_matches(record, current):
@@ -436,16 +484,16 @@ def status(args):
         if state != 'approved' and not blocked:
             print(f'Next: revise/review stage {stage}; record the human decision.')
             blocked = True
-    print_checklist(path)
     record_path = path / '04-test/output/verification.json'
+    record = read_json(record_path) if record_path.exists() else None
     verified = False
-    if record_path.exists():
-        record = read_json(record_path)
-        if record.get('result') == 'passed':
-            try:
-                verified = evidence_matches(record, evidence_inputs(path)) and record['log'] == digest((record_path.parent / 'test-log.md').read_bytes())
-            except (ValueError, OSError, subprocess.SubprocessError):
-                pass
+    if record is not None and record.get('result') == 'passed':
+        try:
+            verified = evidence_matches(record, evidence_inputs(path)) and record['log'] == digest((record_path.parent / 'test-log.md').read_bytes())
+        except (ValueError, OSError, subprocess.SubprocessError, KeyError):
+            pass
+    print_checklist(path, verified)
+    if record is not None:
         print('Verification: ' + ('current' if verified and not blocked else 'failed, stale, or blocked'))
     else:
         print('Verification: not run (implementation may be pending; a text log is not passing evidence)')
