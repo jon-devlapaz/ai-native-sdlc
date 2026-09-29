@@ -12,7 +12,7 @@ Gate: independently authenticated code-owner approval and current required CI in
 the forge. Local parse files cannot approve a release. Consult the deployment
 system for the deployed revision, health result, and rollback reference.
 
-Skill mounts land in the git-ignored `.tink/.active/`; nothing to clean up at run closure.
+Skill mounts land in the git-ignored `.active` directory inside `.tink` (created on first mount, not shipped); nothing to clean up at run closure.
 See `_system/SDLC.md`.
 
 ## Skills

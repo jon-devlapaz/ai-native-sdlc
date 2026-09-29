@@ -9,6 +9,9 @@ The gate requires successful configured checks bound to current candidate and
 input digests. Missing configuration, execution errors, stale inputs, changed test
 baselines, and timeouts fail. A file's existence never proves success.
 
+Gate: verification passes on current evidence and a human reviewer accepts the
+result; a green local run alone is not release approval.
+
 Failures return to stage 03. Incorrect reproduction tests require independent
 parse and a replacement run; do not weaken assertions to obtain green output.
 Local locking detects changes. Strict enforcement requires trusted CI with an
