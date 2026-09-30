@@ -445,6 +445,22 @@ class WorktreeMode(StageBase):
         status = self.sdlc('status', 'r', root=review, cwd=review)
         self.assertIn('Verification: current', status.stdout)
 
+    def test_tink_mount_artifacts_are_not_part_of_the_candidate(self):
+        self.set_checks([PASSING])
+        self.new_run('r')
+        self.commit_run()
+        self.verify_run()
+        # what `tink mount` / `tink-route` leave behind
+        (self.root / '.tink').mkdir(exist_ok=True)
+        (self.root / '.tink/.gitignore').write_text('.active/\ncache/\n')
+        (self.root / '.tink/.active/some-skill').mkdir(parents=True)
+        (self.root / '.tink/.active/some-skill/SKILL.md').write_text('x\n')
+        (self.root / '.tink/cache').mkdir()
+        (self.root / '.tink/cache/blob').write_text('x\n')
+        status = self.sdlc('status', 'r')
+        self.assertIn('Verification: current', status.stdout)
+        self.stage('r', 5, env=IDENT)
+
     def test_tink_failure_leaves_worktree_and_names_it(self):
         self.new_run('r')
         result = self.stage('r', 3, ok=False, env={**IDENT, 'TINK_FAIL': '1'})
