@@ -165,6 +165,17 @@ class StagePinTests(unittest.TestCase):
                        'required', 'AGENTS.md', 'pre-intent', 'optional']:
             self.assertIn(needle, text)
 
+    def test_router_names_the_ad_hoc_skill_command_once_inside_the_markers(self):
+        needle = 'tink-route --receipt runs/<slug>/skills.jsonl "<what you need>"'
+        self.run_init()
+        self.run_init()
+        text = (self.root / 'AGENTS.md').read_text()
+        self.assertEqual(text.count(needle), 1)
+        self.assertLess(text.index('<!-- AI-Native SDLC Router -->'), text.index(needle))
+        self.assertLess(text.index(needle), text.index('<!-- End AI-Native SDLC Router -->'))
+        line = next(l for l in text.splitlines() if needle in l)
+        self.assertIn('exit 1', line)
+
     def test_router_bullet_once_and_idempotent(self):
         bullet = "- Stage skills: see the Skills section of the current stage's CONTEXT.md."
         self.run_init()

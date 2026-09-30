@@ -33,6 +33,7 @@ ROUTER = '''<!-- AI-Native SDLC Router -->
 - Keep factory references in `_shared/` unchanged during feature runs.
 - Use separate worktrees or clones for code-writing runs.
 - Stage skills: see the Skills section of the current stage's CONTEXT.md.
+- Need a specialised skill mid-task? `tink-route --receipt runs/<slug>/skills.jsonl "<what you need>"` prints it on stdout; exit 1 means none fits, so continue without one.
 <!-- End AI-Native SDLC Router -->'''
 
 
