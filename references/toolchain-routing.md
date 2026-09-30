@@ -3,16 +3,19 @@
 1. Load mandatory policy skills deterministically. Reuse an appropriate loaded
    skill before routing. Route only a real capability gap; ranking is evidence of
    fit, not trust.
-2. Scope routing to the active stage's skillset and record a receipt:
+2. Ask the active stage's shelf and record a receipt:
    ```sh
-   tink-route --skillset <stage>-skillset --receipt runs/<slug>/skills.jsonl "<capability needed>"
+   tink-route --receipt runs/<slug>/skills.jsonl "<capability needed>"
    ```
-   The project pin `.tink/skillsets/<name>.json` scopes candidates (minus its
-   `required` disciplines), with a one-shot whole-library fallback; `--strict`
-   disables the fallback. Default behavior verifies the mount and prints the skill
-   on stdout. Exit 0 delivered, 1 no specialist skill applies, 2 could not
-   deliver or usage; on any non-zero, continue without a skill. `--pick` decides
-   only and writes nothing.
+   The phase decides the shelf: the skillset named in the `tink:rules` block that
+   `tink use` compiled into `AGENTS.md` (project pin `.tink/skillsets/<name>.json`,
+   minus its `required` disciplines). The answer is strict: nothing on the shelf
+   means exit 1, and a `Hint:` line may name a skill on another shelf that was not
+   delivered. `--skillset NAME` overrides the shelf and `--anywhere` searches the
+   whole library. Default behavior verifies the mount and prints the skill on
+   stdout. Exit 0 delivered, 1 no specialist skill applies, 2 could not deliver or
+   usage; on any non-zero, continue without a skill. `--pick` decides only and
+   writes nothing.
 3. Read the delivered skill before relying on it. Mounts land in the git-ignored
    `.tink/.active/` and need no pruning; `tink-route` never rewrites
    `.tink/skills.toml` or `.tink/skills.lock`.

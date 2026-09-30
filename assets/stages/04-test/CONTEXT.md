@@ -24,5 +24,7 @@ Skillset: `testing-skillset` (pin: `.tink/skillsets/testing-skillset.json`).
   `tink library fetch .tink/skillsets/testing-skillset.json`
 - At stage open, compile the required disciplines, then start a NEW session so
   `AGENTS.md` is re-read: `tink use testing-skillset --snapshot runs/<slug>/04-test`
-- For a capability gap: `tink-route --skillset testing-skillset --receipt runs/<slug>/skills.jsonl "<what you need>"`
-  (prints the skill on stdout; exit 1 or 2 means continue without a skill).
+- For a capability gap: `tink-route --receipt runs/<slug>/skills.jsonl "<what you need>"`
+  (asks this stage's shelf, the skillset named in the rules block above; prints the skill on stdout.
+  Exit 1 means nothing on the shelf fits, and a `Hint:` line may name a skill on another stage's shelf that
+  was not delivered; exit 1 or 2 means continue without a skill).
