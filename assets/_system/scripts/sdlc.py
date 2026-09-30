@@ -318,11 +318,20 @@ def test_lock(path):
     return digest(lock.read_bytes())
 
 
+def manual_marks(path):
+    """Latest receipt time per attested (check-less) item, so any later mark, pass or fail, stales verification."""
+    items = load_checklist(path) or []
+    latest = marks(path, items)
+    return {item['id']: latest[item['id']]['time_ns'] for item in items if 'check' not in item and item['id'] in latest}
+
+
 def evidence_inputs(path):
+    attested = manual_marks(path)
     return {'candidate': snapshot(), 'inputs': inputs(path, 3),
             'policy': digest((ROOT / '_system/verification.json').read_bytes()),
             'test_lock': test_lock(path),
-            **({'checklist': checklist_digest(path)} if checklist_digest(path) is not None else {})}
+            **({'checklist': checklist_digest(path)} if checklist_digest(path) is not None else {}),
+            **({'manual_marks': attested} if attested else {})}
 
 
 def create(args):
