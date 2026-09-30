@@ -1039,7 +1039,11 @@ def stage(args):
             print(failure, file=sys.stderr)
             print('stage not opened: fix the skillset problem above', file=sys.stderr)
             if make_worktree:
-                print(f'worktree left at {target}', file=sys.stderr)
+                removed = run_git(ROOT, 'worktree', 'remove', '--force', str(target))
+                if removed.returncode == 0 and not detached:
+                    run_git(ROOT, 'branch', '-D', run)
+                print(f'worktree removed; re-run the same command after fixing it' if removed.returncode == 0
+                      else f'worktree left at {target}: {git_line(removed)}', file=sys.stderr)
             raise SystemExit(1)
         print(f'skills: compiled {skillset} into {target}')
     else:

@@ -461,14 +461,28 @@ class WorktreeMode(StageBase):
         self.assertIn('Verification: current', status.stdout)
         self.stage('r', 5, env=IDENT)
 
-    def test_tink_failure_leaves_worktree_and_names_it(self):
+    def test_tink_failure_removes_the_worktree_and_retry_works(self):
         self.new_run('r')
         result = self.stage('r', 3, ok=False, env={**IDENT, 'TINK_FAIL': '1'})
         worktree = self.root.parent / 'proj-r'
-        self.assertTrue(worktree.is_dir())
-        self.assertIn(str(worktree), result.stderr)
+        self.assertFalse(worktree.exists())
+        self.assertEqual(self.git('branch', '--list', 'r').stdout.strip(), '')
+        self.assertNotIn(str(worktree) + '\n', self.git('worktree', 'list').stdout)
         self.assertIn('stage not opened: fix the skillset problem above', result.stderr)
+        self.assertIn('re-run the same command', result.stderr)
         self.assertNotIn('Launch prompt', result.stdout)
+        retry = self.stage('r', 3, env=IDENT)
+        self.assertIn('Launch prompt', retry.stdout)
+        self.assertTrue(worktree.is_dir())
+
+    def test_tink_failure_removes_a_detached_review_worktree(self):
+        self.set_checks([PASSING])
+        self.new_run('r')
+        self.commit_run()
+        self.verify_run()
+        self.stage('r', 5, ok=False, env={**IDENT, 'TINK_FAIL': '1'})
+        self.assertFalse((self.root.parent / 'proj-review-r').exists())
+        self.stage('r', 5, env=IDENT)
 
     def test_worktree_failure_after_commit_says_what_was_committed(self):
         self.new_run('r')
