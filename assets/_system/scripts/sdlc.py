@@ -188,11 +188,11 @@ def inputs(path, stage):
     files = [path / 'brief.md'] if metadata['profile'] == 'light' else [path / p for p in ARTIFACTS[:stage]]
     files += sorted((ROOT / 'stages').glob('*/CONTEXT.md'))
     values = {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in files}
-    pre_intent = metadata.get('pre_intent')
-    if pre_intent:
-        source = Path(pre_intent['path'])
+    seed_contract = metadata.get('seed_contract')
+    if seed_contract:
+        source = Path(seed_contract['path'])
         source = source if source.is_absolute() else ROOT / source
-        values['pre-intent'] = digest(source.read_bytes()) if source.is_file() else '<missing>'
+        values['seed-contract'] = digest(source.read_bytes()) if source.is_file() else '<missing>'
     if stage == 3 and checklist_digest(path) is not None:
         values[str((path / 'checklist.json').relative_to(ROOT))] = checklist_digest(path)
     return digest(encoded(values))
@@ -369,13 +369,13 @@ def decide(args):
         if args.stage not in stages(path):
             raise ValueError('Light runs use stage 3 for their combined definition gate.')
         if args.decision == 'approved':
-            bound = require_run(path).get('pre_intent')
+            bound = require_run(path).get('seed_contract')
             if bound:
                 source = Path(bound['path'])
                 source = source if source.is_absolute() else ROOT / source
                 if not source.is_file() or digest(source.read_bytes()) != bound['sha256']:
-                    raise ValueError(f"The pre-intent {bound['path']} changed or is missing since stage 1 was opened; "
-                                     f'confirm it again, then run: sdlc.py stage {args.run} 1 --pre-intent {bound["path"]}')
+                    raise ValueError(f"The seed contract {bound['path']} changed or is missing since stage 1 was opened; "
+                                     f'confirm it again, then run: sdlc.py stage {args.run} 1 --seed-contract {bound["path"]}')
         if args.decision == 'approved' and args.stage == 3 and load_checklist(path) == []:
             raise ValueError(f'Define at least one checklist item before approval. Edit runs/{args.run}/checklist.json '
                              '(each item needs id, description, verify; optional check).')
@@ -940,17 +940,17 @@ def stage_identity_ok():
     return True
 
 
-def stage_pre_intent(value):
-    """Return (path as shown in the prompt, sha256) of the operator's confirmed Seed Me pre-intent.
+def stage_seed_contract(value):
+    """Return (path as shown in the prompt, sha256) of the operator's confirmed Seed Me seed contract.
 
     Whether the file is really confirmed is the operator's call: nothing here can tell. What is enforced is
     the binding: its digest is recorded in run.json and hashed into approvals and verification."""
     target = Path(value)
     if not target.exists() and not target.is_absolute():
-        raise ValueError(f'pre-intent file not found: {value}')
+        raise ValueError(f'seed contract file not found: {value}')
     resolved = target.resolve()
     if not resolved.is_file():
-        raise ValueError(f'pre-intent must be an existing regular file: {value}')
+        raise ValueError(f'seed contract must be an existing regular file: {value}')
     try:
         shown = str(resolved.relative_to(ROOT))
     except ValueError:
@@ -1014,10 +1014,10 @@ PICK_TIMEOUT = 120
 
 
 def stage_pick_document(path, n):
-    """The stage's input document: the confirmed pre-intent, intent, spec/brief, or review findings; None when absent."""
+    """The stage's input document: the confirmed seed contract, intent, spec/brief, or review findings; None when absent."""
     metadata = require_run(path)
     if n == 1:
-        bound = metadata.get('pre_intent')
+        bound = metadata.get('seed_contract')
         if not bound:
             return None
         found = Path(bound['path'])
@@ -1085,8 +1085,8 @@ def stage(args):
         raise ValueError('stage must be one of 1, 2, 3, 5, 6')
     if args.worktree and args.here:
         raise ValueError('--worktree and --here are mutually exclusive')  # parser already rejects; defensive
-    if args.pre_intent and n != 1:
-        raise ValueError('--pre-intent applies to stage 1 only')
+    if args.seed_contract and n != 1:
+        raise ValueError('--seed-contract applies to stage 1 only')
     top = run_git(ROOT, 'rev-parse', '--show-toplevel')
     if top.returncode or Path(top.stdout.strip()).resolve() != ROOT:
         raise ValueError('the scaffold must sit at the root of a git repository')
@@ -1097,7 +1097,7 @@ def stage(args):
             raise ValueError('stage 5 reviews a commit, and these candidate changes are uncommitted: ' + ', '.join(dirty[:5])
                              + (f' (+{len(dirty) - 5} more)' if len(dirty) > 5 else '')
                              + '; commit the candidate changes (verify again only if the code changed since it passed)')
-    pre_intent, pre_intent_digest = stage_pre_intent(args.pre_intent) if args.pre_intent else (None, None)
+    seed_contract, seed_contract_digest = stage_seed_contract(args.seed_contract) if args.seed_contract else (None, None)
     skillset = stage_skillset(n)
     stage_dir = STAGE_DIRS[n]
 
@@ -1115,9 +1115,9 @@ def stage(args):
             raise ValueError(f'worktree path already exists: {target} (remove it with: git worktree remove {target})')
         if not detached and run_git(ROOT, 'show-ref', '--verify', '--quiet', f'refs/heads/{run}').returncode == 0:
             raise ValueError(f"branch '{run}' already exists (remove it with: git branch -D {run}, after git worktree remove on any checkout using it)")
-    if pre_intent and not args.check:
+    if seed_contract and not args.check:
         with locked(path / '.writer-lock'):
-            write_json(path / 'run.json', {**read_json(path / 'run.json'), 'pre_intent': {'path': pre_intent, 'sha256': pre_intent_digest}})
+            write_json(path / 'run.json', {**read_json(path / 'run.json'), 'seed_contract': {'path': seed_contract, 'sha256': seed_contract_digest}})
     pick_line, pick_sentence = stage_pick(path, run, n, args.check)
     pending = bool(run_git(ROOT, 'status', '--porcelain', '--', f'runs/{run}').stdout.strip()) if make_worktree else False
     if pending and not stage_identity_ok():
@@ -1129,8 +1129,8 @@ def stage(args):
         notice = 'skills: skipped (tink not installed); the agent will run without stage disciplines'
     snapshot_arg = f'runs/{run}/{stage_dir}'
     prompt = f'Begin stage {n} ({STAGE_WORDS[n]}) of SDLC run `{run}`.'
-    if pre_intent:
-        prompt += f' The operator-confirmed pre-intent is at {pre_intent}; it is input, not authorization.'
+    if seed_contract:
+        prompt += f' The operator-confirmed seed contract is at {seed_contract}; it is input, not authorization.'
     prompt += pick_sentence or ''
     warn = stage_dirty(run) if make_worktree else []
     warning = ('warning: not carried into the new checkout: ' + ', '.join(warn[:5]) + (f' (+{len(warn) - 5} more)' if len(warn) > 5 else '')
@@ -1239,7 +1239,7 @@ def main():
     where = launch.add_mutually_exclusive_group()
     where.add_argument('--worktree', metavar='PATH')
     where.add_argument('--here', action='store_true')
-    launch.add_argument('--pre-intent', metavar='PATH')
+    launch.add_argument('--seed-contract', metavar='PATH')
     launch.add_argument('--check', action='store_true', help='validate and print the plan; write nothing')
     lint = commands.add_parser('walk', help='structural walk lint (read-only)')
     lint.add_argument('--json', action='store_true')
