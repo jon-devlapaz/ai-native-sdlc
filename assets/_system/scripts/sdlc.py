@@ -953,6 +953,25 @@ def candidate_dirty(run):
     return dirty
 
 
+MIN_TINK_ROUTE = (0, 9, 0)
+
+
+def tink_route_warning():
+    """One warning line when an installed tink-route predates the stage shelf, else None."""
+    route = shutil.which('tink-route')
+    if not route:
+        return None
+    try:
+        out = subprocess.run([route, '--version'], capture_output=True, text=True, timeout=10).stdout
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    match = re.search(r'(\d+)\.(\d+)\.(\d+)', out)
+    if not match or tuple(int(g) for g in match.groups()) >= MIN_TINK_ROUTE:
+        return None
+    return (f'warning: tink-route {match.group(0)} is older than {".".join(map(str, MIN_TINK_ROUTE))} and ignores the stage shelf; '
+            'upgrade: pipx install --force git+https://github.com/jon-devlapaz/tink-route.git')
+
+
 def stage(args):
     run, n = args.run, args.n
     path = run_path(run)
@@ -1050,6 +1069,8 @@ def stage(args):
         print(notice)
     if warning:
         print(warning)
+    if not args.check and (stale_route := tink_route_warning()):
+        print(stale_route)
     print(f'Checkout: {target}')
     print('Launch prompt (start a NEW session there):')
     print(prompt)
