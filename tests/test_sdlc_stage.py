@@ -17,6 +17,7 @@ PYTHON = shutil.which('python3')
 GIT = shutil.which('git')
 IDENT = {'GIT_AUTHOR_NAME': 'Launcher', 'GIT_AUTHOR_EMAIL': 'l@local',
          'GIT_COMMITTER_NAME': 'Launcher', 'GIT_COMMITTER_EMAIL': 'l@local'}
+CONFIRMED = 'seed contract — confirmed for intake; not approved for implementation\nidea\n'
 PASSING = {'argv': ['python3', '-c', 'pass'], 'timeout_seconds': 20}
 DIRS = {1: ('plan', '01-plan'), 2: ('design', '02-design'), 3: ('build', '03-build'),
         5: ('deploy', '05-deploy'), 6: ('maintain', '06-maintain')}
@@ -227,7 +228,7 @@ class HereMode(StageBase):
 
     def test_stage_one_pre_intent_repo_relative(self):
         self.new_run('r', approve=False)
-        (self.root / 'pre-intent.md').write_text('idea\n')
+        (self.root / 'pre-intent.md').write_text(CONFIRMED)
         result = self.stage('r', 1, '--pre-intent', 'pre-intent.md', cwd=self.root)
         self.assertEqual(result.stdout.splitlines()[-1],
                          'Begin stage 1 (plan) of SDLC run `r`. The operator-confirmed pre-intent is at pre-intent.md; '
@@ -236,9 +237,31 @@ class HereMode(StageBase):
     def test_stage_one_pre_intent_absolute_outside_repo(self):
         self.new_run('r', approve=False)
         outside = self.base / 'notes.md'
-        outside.write_text('idea\n')
+        outside.write_text(CONFIRMED)
         result = self.stage('r', 1, '--pre-intent', str(outside))
         self.assertIn(f'pre-intent is at {outside};', result.stdout.splitlines()[-1])
+
+    def test_pre_intent_that_is_not_confirmed_is_refused(self):
+        for body in ('status: simulated — not confirmed by a human\nidea\n', 'unconfirmed — awaiting affirmation\n',
+                     'status: draft        revision: 1\n', 'just some notes\n',
+                     'confirmed for intake\nbut also: simulated\n'):
+            with self.subTest(body=body):
+                self.setUp()
+                self.new_run('r', approve=False)
+                (self.root / 'pi.md').write_text(body)
+                self.refuses('r', 1, '--pre-intent', str(self.root / 'pi.md'), message='not confirmed')
+
+    def test_confirmed_pre_intent_is_recorded_and_binds_approval(self):
+        self.new_run('r', approve=False)
+        target = self.base / 'contract.md'
+        target.write_text(CONFIRMED)
+        self.stage('r', 1, '--pre-intent', str(target))
+        recorded = json.loads((self.root / 'runs/r/run.json').read_text())['pre_intent']
+        self.assertEqual(recorded, {'path': str(target), 'sha256': hashlib.sha256(CONFIRMED.encode()).hexdigest()})
+        self.decide('r', 3)
+        self.assertIn('Stage 3: approved', self.sdlc('status', 'r').stdout)
+        target.write_text('seed contract — confirmed for intake\nchanged scope\n')
+        self.assertNotIn('Stage 3: approved', self.sdlc('status', 'r').stdout)
 
     def test_stage_two_and_six_default_here(self):
         self.new_run('f', profile='full', approve=False)

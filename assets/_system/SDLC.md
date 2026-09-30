@@ -63,7 +63,7 @@ This detects local changes, not adversarial tampering. Strict protection require
 
 - The launcher (the human, or a script acting for them) records the gate, then runs
   `python3 _system/scripts/sdlc.py stage <run> <n>` (`--check` previews, `--worktree PATH` or `--here`
-  picks the checkout, `--pre-intent PATH` adds the confirmed pre-intent to a stage-1 prompt). It commits
+  picks the checkout, `--pre-intent PATH` adds the confirmed pre-intent to a stage-1 prompt; the file must say "confirmed for intake" or "status: confirmed" and not unconfirmed, simulated or draft, and its path and sha256 are recorded in `run.json` and bound to approvals and verification, so editing it makes them stale). It commits
   `runs/<run>`, creates the worktree (stage 3: branch `<run>`; stage 5: detached review checkout),
   runs `tink use <skillset> --snapshot runs/<run>/<stage-dir>` inside it, and prints the launch prompt
   for a NEW session. It refuses unless the entry gates are approved and current (stage 5 also needs

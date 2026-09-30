@@ -188,6 +188,11 @@ def inputs(path, stage):
     files = [path / 'brief.md'] if metadata['profile'] == 'light' else [path / p for p in ARTIFACTS[:stage]]
     files += sorted((ROOT / 'stages').glob('*/CONTEXT.md'))
     values = {str(p.relative_to(ROOT)): digest(p.read_bytes()) for p in files}
+    pre_intent = metadata.get('pre_intent')
+    if pre_intent:
+        source = Path(pre_intent['path'])
+        source = source if source.is_absolute() else ROOT / source
+        values['pre-intent'] = digest(source.read_bytes()) if source.is_file() else '<missing>'
     if stage == 3 and checklist_digest(path) is not None:
         values[str((path / 'checklist.json').relative_to(ROOT))] = checklist_digest(path)
     return digest(encoded(values))
@@ -928,17 +933,28 @@ def stage_identity_ok():
     return True
 
 
+PRE_INTENT_CONFIRMED = re.compile(r'confirmed for intake|^\W*status:\s*confirmed\b', re.I | re.M)
+PRE_INTENT_NOT_CONFIRMED = re.compile(r'unconfirmed|simulated|^\W*status:\s*draft\b', re.I | re.M)
+
+
 def stage_pre_intent(value):
+    """Return (path as shown in the prompt, sha256) of a Seed Me pre-intent that states it is confirmed."""
     target = Path(value)
     if not target.exists() and not target.is_absolute():
         raise ValueError(f'pre-intent file not found: {value}')
     resolved = target.resolve()
     if not resolved.is_file():
         raise ValueError(f'pre-intent must be an existing regular file: {value}')
+    data = resolved.read_bytes()
+    text = data.decode('utf-8', errors='replace')
+    if not PRE_INTENT_CONFIRMED.search(text) or PRE_INTENT_NOT_CONFIRMED.search(text):
+        raise ValueError(f'pre-intent is not confirmed: {value} must say "confirmed for intake" (or "status: confirmed") '
+                         'and must not say unconfirmed, simulated or draft; confirm it with the operator in seed-me first')
     try:
-        return str(resolved.relative_to(ROOT))
+        shown = str(resolved.relative_to(ROOT))
     except ValueError:
-        return str(resolved)
+        shown = str(resolved)
+    return shown, digest(data)
 
 
 def stage_dirty(run):
@@ -1003,7 +1019,7 @@ def stage(args):
             raise ValueError('stage 5 reviews a commit, and these candidate changes are uncommitted: ' + ', '.join(dirty[:5])
                              + (f' (+{len(dirty) - 5} more)' if len(dirty) > 5 else '')
                              + '; commit the candidate changes (verify again only if the code changed since it passed)')
-    pre_intent = stage_pre_intent(args.pre_intent) if args.pre_intent else None
+    pre_intent, pre_intent_digest = stage_pre_intent(args.pre_intent) if args.pre_intent else (None, None)
     skillset = stage_skillset(n)
     stage_dir = STAGE_DIRS[n]
 
@@ -1033,6 +1049,9 @@ def stage(args):
     warning = ('warning: not carried into the new checkout: ' + ', '.join(warn[:5]) + (f' (+{len(warn) - 5} more)' if len(warn) > 5 else '')
                if warn else None)
 
+    if pre_intent and not args.check:
+        with locked(path / '.writer-lock'):
+            write_json(path / 'run.json', {**read_json(path / 'run.json'), 'pre_intent': {'path': pre_intent, 'sha256': pre_intent_digest}})
     if args.check:
         print(f'Would commit: {"yes" if pending else "no"}')
         how = f'branch {run}' if not detached else 'detached'
