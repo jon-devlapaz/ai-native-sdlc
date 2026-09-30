@@ -368,6 +368,14 @@ def decide(args):
     with locked(path / '.writer-lock'):
         if args.stage not in stages(path):
             raise ValueError('Light runs use stage 3 for their combined definition gate.')
+        if args.decision == 'approved':
+            bound = require_run(path).get('pre_intent')
+            if bound:
+                source = Path(bound['path'])
+                source = source if source.is_absolute() else ROOT / source
+                if not source.is_file() or digest(source.read_bytes()) != bound['sha256']:
+                    raise ValueError(f"The pre-intent {bound['path']} changed or is missing since stage 1 was opened; "
+                                     f'confirm it again, then run: sdlc.py stage {args.run} 1 --pre-intent {bound["path"]}')
         if args.decision == 'approved' and args.stage == 3 and load_checklist(path) == []:
             raise ValueError(f'Define at least one checklist item before approval. Edit runs/{args.run}/checklist.json '
                              '(each item needs id, description, verify; optional check).')
@@ -956,6 +964,17 @@ def stage_dirty(run):
     return [p for p in paths if not p.startswith(f'runs/{run}/') and p not in (f'runs/{run}', f'runs/.{run}.lock')]
 
 
+def prune_empty_parents(target, stop):
+    """Remove empty directories git created above `target`, up to but never including `stop` (the deepest one that existed)."""
+    parent = Path(target).parent
+    while parent != stop and stop in parent.parents:
+        try:
+            parent.rmdir()
+        except OSError:
+            break
+        parent = parent.parent
+
+
 def candidate_dirty(run):
     """Uncommitted paths that are part of the verified candidate (what verify fingerprints), not disposable caches or generated rules."""
     dirty = []
@@ -1018,10 +1037,14 @@ def stage(args):
 
     make_worktree = not args.here and (args.worktree or n in (3, 5))
     target = ROOT
+    first_existing = ROOT
     detached = n != 3
     if make_worktree:
         target = Path(os.path.abspath(args.worktree)) if args.worktree else (
             ROOT.parent / (f'{ROOT.name}-review-{run}' if n == 5 else f'{ROOT.name}-{run}'))
+        first_existing = target.parent
+        while not first_existing.exists():
+            first_existing = first_existing.parent
         if target.exists() or target.is_symlink():
             raise ValueError(f'worktree path already exists: {target} (remove it with: git worktree remove {target})')
         if not detached and run_git(ROOT, 'show-ref', '--verify', '--quiet', f'refs/heads/{run}').returncode == 0:
@@ -1066,6 +1089,7 @@ def stage(args):
             if created.returncode:
                 if not detached:
                     run_git(ROOT, 'branch', '-D', run)
+                prune_empty_parents(target, first_existing)
                 raise ValueError(f'worktree creation failed: {git_line(created)}'
                                  + (f'\nalready committed {committed[0]}: {committed[1]}' if committed else ''))
     if args.check:
@@ -1084,6 +1108,8 @@ def stage(args):
                 removed = run_git(ROOT, 'worktree', 'remove', '--force', str(target))
                 if removed.returncode == 0 and not detached:
                     run_git(ROOT, 'branch', '-D', run)
+                if removed.returncode == 0:
+                    prune_empty_parents(target, first_existing)
                 print(f'worktree removed; re-run the same command after fixing it' if removed.returncode == 0
                       else f'worktree left at {target}: {git_line(removed)}', file=sys.stderr)
             raise SystemExit(1)
