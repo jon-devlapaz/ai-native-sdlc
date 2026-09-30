@@ -244,12 +244,22 @@ class HereMode(StageBase):
     def test_pre_intent_that_is_not_confirmed_is_refused(self):
         for body in ('status: simulated — not confirmed by a human\nidea\n', 'unconfirmed — awaiting affirmation\n',
                      'status: draft        revision: 1\n', 'just some notes\n',
-                     'confirmed for intake\nbut also: simulated\n'):
+                     'status: confirmed\nstatus: simulated\n', 'status: pending\nnot yet confirmed for intake\n',
+                     'status: rejected — was confirmed for intake but is withdrawn\n', 'status: confirmed-pending-review\n'):
             with self.subTest(body=body):
                 self.setUp()
                 self.new_run('r', approve=False)
                 (self.root / 'pi.md').write_text(body)
                 self.refuses('r', 1, '--pre-intent', str(self.root / 'pi.md'), message='not confirmed')
+
+    def test_confirmed_pre_intent_wording_is_read_from_the_status_line(self):
+        for body in ('seed contract — confirmed for intake; not approved for implementation\nNo unconfirmed assumptions remain.\n'
+                     'We replaced the simulated backend.\n', '**Status:** Confirmed\n', 'status: confirmed        revision: 1\n'):
+            with self.subTest(body=body):
+                self.setUp()
+                self.new_run('r', approve=False)
+                (self.root / 'pi.md').write_text(body)
+                self.stage('r', 1, '--pre-intent', str(self.root / 'pi.md'))
 
     def test_confirmed_pre_intent_is_recorded_and_binds_approval(self):
         self.new_run('r', approve=False)
@@ -503,6 +513,18 @@ class WorktreeMode(StageBase):
                     self.assertIn('Verification: failed, stale, or blocked', self.sdlc('status', 'r').stdout)
                     self.commit_run()
                     self.refuses('r', 5, message='run verify first', env=IDENT)
+
+    def test_editing_a_mark_receipt_stales_verification(self):
+        self.set_checks([PASSING])
+        self.new_run('r', check=None)
+        self.mark('passed')
+        self.commit_run()
+        self.verify_run()
+        receipt = next((self.root / 'runs/r/marks').glob('*.json'))
+        receipt.write_text(receipt.read_text().replace('"passed"', '"failed"'))
+        self.assertIn('Verification: failed, stale, or blocked', self.sdlc('status', 'r').stdout)
+        self.commit_run()
+        self.refuses('r', 5, message='run verify first', env=IDENT)
 
     def route_shim(self, version):
         shim = self.bin / 'tink-route'
