@@ -938,6 +938,21 @@ def stage_identity_ok():
     return True
 
 
+def require_tink_use(tink):
+    """Refuse early, with the fix, when the installed tink predates `tink use` (which compiles the stage disciplines)."""
+    try:
+        probe = subprocess.run([tink, 'use', '--help'], capture_output=True, text=True, timeout=15)
+    except (subprocess.TimeoutExpired, OSError):
+        return
+    if probe.returncode == 0:
+        return
+    try:
+        version = subprocess.run([tink, '--version'], capture_output=True, text=True, timeout=15).stdout.strip() or 'the installed tink'
+    except (subprocess.TimeoutExpired, OSError):
+        version = 'the installed tink'
+    raise ValueError(f'{version} has no `tink use` (it compiles the stage disciplines); upgrade tink, then re-run the same command')
+
+
 def stage_seed_contract(value):
     """Return (resolved path, bytes) of the operator's confirmed Seed Me seed contract.
 
@@ -1095,6 +1110,9 @@ def stage(args):
     seed_source, seed_bytes = stage_seed_contract(args.seed_contract) if args.seed_contract else (None, None)
     seed_contract = f'runs/{run}/seed-contract.md' if seed_source else None
     skillset = stage_skillset(n)
+    tink = shutil.which('tink') if skillset else None
+    if tink:
+        require_tink_use(tink)
     stage_dir = STAGE_DIRS[n]
 
     make_worktree = not args.here and (args.worktree or n in (3, 5))
@@ -1125,7 +1143,6 @@ def stage(args):
     if pending and not stage_identity_ok():
         raise ValueError('no committer identity configured; set user.name and user.email (or GIT_COMMITTER_*) so the launcher can commit '
                          f'runs/{run}')
-    tink = shutil.which('tink') if skillset else None
     notice = None if skillset else f'skills: skipped (stages/{stage_dir}/CONTEXT.md names no skillset)'
     if skillset and not tink:
         notice = 'skills: skipped (tink not installed); the agent will run without stage disciplines'
