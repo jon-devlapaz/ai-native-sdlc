@@ -461,6 +461,26 @@ class WorktreeMode(StageBase):
         self.assertIn('Verification: current', status.stdout)
         self.stage('r', 5, env=IDENT)
 
+    def mark(self, result):
+        out = self.sdlc('mark', 'r', 'a', result, '--evidence', 'e')
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+
+    def test_a_mark_after_verification_makes_it_stale_and_blocks_stage_five(self):
+        for profile in ('light', 'full'):
+            for later in ('failed', 'passed'):
+                with self.subTest(profile=profile, later=later):
+                    self.setUp()
+                    self.set_checks([PASSING])
+                    self.new_run('r', profile=profile, check=None)
+                    self.mark('passed')
+                    self.commit_run()
+                    self.verify_run()
+                    self.assertIn('Verification: current', self.sdlc('status', 'r').stdout)
+                    self.mark(later)
+                    self.assertIn('Verification: failed, stale, or blocked', self.sdlc('status', 'r').stdout)
+                    self.commit_run()
+                    self.refuses('r', 5, message='run verify first', env=IDENT)
+
     def route_shim(self, version):
         shim = self.bin / 'tink-route'
         shim.write_text(f'#!/bin/sh\necho "tink-route {version}"\n')
