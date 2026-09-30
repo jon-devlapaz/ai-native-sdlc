@@ -3,6 +3,8 @@
 Inputs: current stage 04 evidence, candidate diff, approved brief or spec/plan,
 and `_shared/REVIEW.md`.
 Output: `runs/<slug>/05-deploy/output/REVIEW-findings.md` and a PR when requested.
+Open (or confirm) the PR from the verified, committed candidate; the agent may open it, only a human merges it.
+If code changes after the PR is open, run verify again before the review continues.
 
 Check logic, security boundaries, and acceptance criteria. Use separate review
 passes for risk that warrants them; a model review is not human approval.
