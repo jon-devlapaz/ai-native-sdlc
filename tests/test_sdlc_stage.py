@@ -461,6 +461,28 @@ class WorktreeMode(StageBase):
         self.assertIn('Verification: current', status.stdout)
         self.stage('r', 5, env=IDENT)
 
+    def route_shim(self, version):
+        shim = self.bin / 'tink-route'
+        shim.write_text(f'#!/bin/sh\necho "tink-route {version}"\n')
+        shim.chmod(0o755)
+
+    def test_stage_warns_when_tink_route_is_too_old_for_the_stage_shelf(self):
+        self.new_run('r')
+        self.route_shim('0.8.0')
+        result = self.stage('r', 3, env=IDENT)
+        self.assertIn('warning: tink-route 0.8.0 is older than 0.9.0', result.stdout)
+        self.assertIn('ignores the stage shelf', result.stdout)
+        self.assertIn('pipx install --force git+https://github.com/jon-devlapaz/tink-route.git', result.stdout)
+        self.assertIn('Launch prompt', result.stdout)
+
+    def test_stage_is_quiet_when_tink_route_is_current_or_absent(self):
+        self.new_run('a')
+        self.route_shim('0.9.0')
+        self.assertNotIn('tink-route', self.stage('a', 3, env=IDENT).stdout)
+        (self.bin / 'tink-route').unlink()
+        self.new_run('b')
+        self.assertNotIn('tink-route', self.stage('b', 3, env=IDENT).stdout)
+
     def test_tink_failure_removes_the_worktree_and_retry_works(self):
         self.new_run('r')
         result = self.stage('r', 3, ok=False, env={**IDENT, 'TINK_FAIL': '1'})

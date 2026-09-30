@@ -107,7 +107,7 @@ The phase decides the shelf: `tink-route` reads the skillset named in the `tink:
 
 `seed-me` is human-invoked and belongs to no stage skillset. Install it separately with `tink skill add jon-devlapaz/tink-skills --skill seed-me`. Its confirmed pre-intent is the input to 01-plan: give the agent that file's path in the stage-1 launch prompt.
 
-`tink use` and `tink-route` are optional integrations; runs work without them.
+`tink use` and `tink-route` are optional integrations; runs work without them. `tink-route` 0.9.0 or newer is required for the stage shelf (older versions search the whole library and ignore it); `sdlc.py stage` warns when an older one is on PATH.
 
 ## Recovery and release
 
