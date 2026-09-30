@@ -94,10 +94,12 @@ Each stage has a skillset pin committed at `.tink/skillsets/<name>-skillset.json
 ```sh
 tink library fetch .tink/skillsets/<name>-skillset.json    # once per machine/library, after reviewing the pin
 tink use <name>-skillset --snapshot runs/<slug>/<stage-dir>  # at stage open, then start a NEW session
-tink-route --skillset <name>-skillset --receipt runs/<slug>/skills.jsonl "<what you need>"
+tink-route --receipt runs/<slug>/skills.jsonl "<what you need>"
 ```
 
 `required` lists the disciplines that `tink use` compiles into `AGENTS.md` at stage open, so each stage gets a fresh session that re-reads it. The starting set is every `principle-*` member of the pin; it is provisional and to be tuned later by ablation. Capability skills come only through `tink-route` for genuine gaps (stdout is the skill); exit 1 or 2 means continue without a skill.
+
+The phase decides the shelf: `tink-route` reads the skillset named in the `tink:rules` block that `tink use` compiled into this checkout's `AGENTS.md`, so the command is identical in every stage and answers only from that stage's shelf. When the shelf has nothing, exit 1 may add `Hint: <skill> fits but is on another shelf (<skillset>); it was not delivered.`; ask that stage's owner, or override deliberately with `--skillset NAME` (a specific shelf) or `--anywhere` (the whole library). With no rules block it searches the whole library.
 
 `seed-me` is human-invoked and belongs to no stage skillset. Install it separately with `tink skill add jon-devlapaz/tink-skills --skill seed-me`. Its confirmed pre-intent is the input to 01-plan: give the agent that file's path in the stage-1 launch prompt.
 
