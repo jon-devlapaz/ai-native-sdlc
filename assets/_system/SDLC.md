@@ -103,11 +103,11 @@ tink-route --receipt runs/<slug>/skills.jsonl "<what you need>"
 
 `required` lists the disciplines that `tink use` compiles into `AGENTS.md` at stage open, so each stage gets a fresh session that re-reads it. The starting set is every `principle-*` member of the pin; it is provisional and to be tuned later by ablation. Capability skills come only through `tink-route` for genuine gaps (stdout is the skill); exit 1 or 2 means continue without a skill.
 
-The phase decides the shelf: `tink-route` reads the skillset named in the `tink:rules` block that `tink use` compiled into this checkout's `AGENTS.md`, so the command is identical in every stage and answers only from that stage's shelf. When the shelf has nothing, exit 1 may add `Hint: <skill> fits but is on another shelf (<skillset>); it was not delivered.`; ask that stage's owner, or override deliberately with `--skillset NAME` (a specific shelf) or `--anywhere` (the whole library). With no rules block it searches the whole library.
+`tink-route` searches the whole skill library and never reads `AGENTS.md`, so the command is identical in every stage. In our routing eval 56% of the skills a stage needed were not on that stage's shelf, and the whole library was as precise as the shelf where both applied. `--skillset NAME` restricts a call to one skillset (exit 1 may then add `Hint: <skill> fits but is on another shelf (<skillset>); it was not delivered.`); `--anywhere` is the default spelled out.
 
 `seed-me` is human-invoked and belongs to no stage skillset. Install it separately with `tink skill add jon-devlapaz/tink-skills --skill seed-me`. Its confirmed pre-intent is the input to 01-plan: give the agent that file's path in the stage-1 launch prompt.
 
-`tink use` and `tink-route` are optional integrations; runs work without them. `tink-route` 0.9.0 or newer is required for the stage shelf (older versions search the whole library and ignore it); `sdlc.py stage` warns when an older one is on PATH.
+`tink use` and `tink-route` are optional integrations; runs work without them. `tink-route` 0.10.0 or newer is required for whole-library routing (older versions scope routing to the stage shelf in the `AGENTS.md` rules block); `sdlc.py stage` warns when an older one is on PATH.
 
 ## Recovery and release
 

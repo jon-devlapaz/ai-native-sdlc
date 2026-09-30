@@ -666,18 +666,22 @@ class WorktreeMode(StageBase):
         shim.write_text(f'#!/bin/sh\necho "tink-route {version}"\n')
         shim.chmod(0o755)
 
-    def test_stage_warns_when_tink_route_is_too_old_for_the_stage_shelf(self):
-        self.new_run('r')
-        self.route_shim('0.8.0')
-        result = self.stage('r', 3, env=IDENT)
-        self.assertIn('warning: tink-route 0.8.0 is older than 0.9.0', result.stdout)
-        self.assertIn('ignores the stage shelf', result.stdout)
-        self.assertIn('pipx install --force git+https://github.com/jon-devlapaz/tink-route.git', result.stdout)
-        self.assertIn('Launch prompt', result.stdout)
+    def test_stage_warns_when_tink_route_predates_whole_library_routing(self):
+        for old in ('0.8.0', '0.9.0'):
+            with self.subTest(version=old):
+                self.setUp()
+                self.new_run('r')
+                self.route_shim(old)
+                result = self.stage('r', 3, env=IDENT)
+                self.assertIn(f'warning: tink-route {old} is older than 0.10.0', result.stdout)
+                self.assertIn('scopes routing to the stage shelf', result.stdout)
+                self.assertNotIn('ignores', result.stdout)
+                self.assertIn('Launch prompt', result.stdout)
+                self.assertIn('pipx install --force git+https://github.com/jon-devlapaz/tink-route.git', result.stdout)
 
     def test_stage_is_quiet_when_tink_route_is_current_or_absent(self):
         self.new_run('a')
-        self.route_shim('0.9.0')
+        self.route_shim('0.10.0')
         self.assertNotIn('tink-route', self.stage('a', 3, env=IDENT).stdout)
         (self.bin / 'tink-route').unlink()
         self.new_run('b')
