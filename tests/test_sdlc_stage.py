@@ -526,6 +526,26 @@ class WorktreeMode(StageBase):
         self.commit_run()
         self.refuses('r', 5, message='run verify first', env=IDENT)
 
+    def test_deleting_or_corrupting_every_mark_receipt_stales_verification(self):
+        for how in ('delete', 'corrupt'):
+            with self.subTest(how=how):
+                self.setUp()
+                self.set_checks([PASSING])
+                self.new_run('r', check=None)
+                self.mark('passed')
+                self.commit_run()
+                self.verify_run()
+                marks = self.root / 'runs/r/marks'
+                if how == 'delete':
+                    shutil.rmtree(marks)
+                else:
+                    for receipt in marks.glob('*.json'):
+                        receipt.write_text('{"item": "a", "result": "passed", "time_ns": "soon"}')
+                status = self.sdlc('status', 'r').stdout
+                self.assertIn('Verification: failed, stale, or blocked', status)
+                self.commit_run()
+                self.refuses('r', 5, message='run verify first', env=IDENT)
+
     def route_shim(self, version):
         shim = self.bin / 'tink-route'
         shim.write_text(f'#!/bin/sh\necho "tink-route {version}"\n')

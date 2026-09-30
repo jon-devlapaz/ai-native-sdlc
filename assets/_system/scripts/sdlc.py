@@ -335,8 +335,7 @@ def evidence_inputs(path):
     return {'candidate': snapshot(), 'inputs': inputs(path, 3),
             'policy': digest((ROOT / '_system/verification.json').read_bytes()),
             'test_lock': test_lock(path),
-            **({'checklist': checklist_digest(path)} if checklist_digest(path) is not None else {}),
-            **({'manual_marks': attested} if attested else {})}
+            **({'checklist': checklist_digest(path), 'manual_marks': attested} if checklist_digest(path) is not None else {})}
 
 
 def create(args):
