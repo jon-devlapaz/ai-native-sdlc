@@ -12,6 +12,7 @@ baselines, and timeouts fail. A file's existence never proves success.
 Gate: verification passes on current evidence and a human reviewer accepts the
 result; a green local run alone is not release approval.
 
+Commit the candidate before final verification; a passing, committed run is the point at which a PR may be opened (stage 05 reviews it).
 Failures return to stage 03. Incorrect reproduction tests require independent
 review and a replacement run; do not weaken assertions to obtain green output.
 Local locking detects changes. Strict enforcement requires trusted CI with an

@@ -1,5 +1,5 @@
 {
-  "version": "1.10.0",
+  "version": "1.10.1",
   "files": {
     ".tink/skillsets/build-skillset.json": "8e4b6397b31e9d830a7baa6d887891505d1b3354a3482ef2c9a876dbdb291445",
     ".tink/skillsets/deployment-skillset.json": "9a89b7593f86f593afe3d81878d97b14ee0143d734eeb4fd0adca6ef8f7a6732",
@@ -12,7 +12,7 @@
     "_shared/intent-template.md": "93eebf7467c4a1e76b02e1da8629d28be4218c199739c88f51e58914a8d5d403",
     "_shared/plan-template.md": "fe93363211dcc70b73843b0fa7827f8f9ca7b26e185db7a6b6e9d2adf5a42c00",
     "_shared/spec-template.md": "d26109e578014743268696a97d0f83932b48be8b17a9a04bf6ec822b498caa28",
-    "_system/SDLC.md": "3dffe6645bcd87a4985d2f51c86ec38d970c238b5a1e5f2299c45a8556a463a5",
+    "_system/SDLC.md": "8bac4a17ada91dc1274d5c1fb85845c77739826e0aea2fd60adeb108b1ee9242",
     "_system/scripts/new-run.sh": "5cefd13d71d3ad1f4dfdceb8ed85c2ac6f07ff4798f722df91c4d705305a260b",
     "_system/scripts/sdlc.py": "d45cf5bf3c4e799a2d10f897e6c55c28788fea9f64fd8f00b70ff68642fa28f4",
     "_system/scripts/status.sh": "220b50bfca4d1dd6fcf786a9c834b295a3a8740efa8074a0846c8ad12a1a3c31",
@@ -21,8 +21,8 @@
     "stages/01-plan/CONTEXT.md": "2060d1742793b01288a684109a4e8c71336c03761084a5c239dd7ea113698f5a",
     "stages/02-design/CONTEXT.md": "a3e3dd572a27b15684aa52adc83de5fb7197bfe3d5676fa668910ecac5d50272",
     "stages/03-build/CONTEXT.md": "20b9ce15f2ae2dedf8437db7d4cd7ba09e000defe7fd863e935fa9e78ee50c46",
-    "stages/04-test/CONTEXT.md": "15f6f49079da6cc2f1157da1a5244457673bc0739249400b1059e97f2e1fc8ee",
-    "stages/05-deploy/CONTEXT.md": "229b9c4ebc5735c627dcf156cdba46258f3933168e149a18f5f789cf15c42568",
+    "stages/04-test/CONTEXT.md": "cac2202611a0d96ce716db3aedf6121e7f61161cff4e2d6966841e464e785e4f",
+    "stages/05-deploy/CONTEXT.md": "7b5482ba81482d2ebb7f13a0f396a9f825491ad04e4352429ba5bd6b1b07804f",
     "stages/06-maintain/CONTEXT.md": "503fa4c2ba3a6074e212aace01355803cc15f856afb8dfce8a2664276946038a"
   },
   "projectOwned": [
