@@ -61,10 +61,14 @@ This detects local changes, not adversarial tampering. Strict protection require
 
 ## Who does what at a stage boundary
 
-- The launcher (the human, or a script acting for them) records the gate and commits the
-  approved artifacts and receipts. It creates the run and the worktree, then runs
-  `tink use <skillset> --snapshot runs/<slug>/<stage-dir>` inside the checkout the agent
-  will use, and starts a NEW session with a one-line prompt naming the stage and run.
+- The launcher (the human, or a script acting for them) records the gate, then runs
+  `python3 _system/scripts/sdlc.py stage <run> <n>` (`--check` previews, `--worktree PATH` or `--here`
+  picks the checkout, `--pre-intent PATH` adds the confirmed pre-intent to a stage-1 prompt). It commits
+  `runs/<run>`, creates the worktree (stage 3: branch `<run>`; stage 5: detached review checkout),
+  runs `tink use <skillset> --snapshot runs/<run>/<stage-dir>` inside it, and prints the launch prompt
+  for a NEW session. It refuses unless the entry gates are approved and current (stage 5 also needs
+  current verification), and it fails closed when the skillset does not compile. Stage 4 runs inside the
+  stage-3 session. Manual fallback: approve, commit `runs/<run>`, `git worktree add`, `tink use`, prompt.
 - The agent never creates the run, never runs `tink use`, and never approves. It reads
   `AGENTS.md`, its stage `CONTEXT.md`, and `_system/scripts/status.sh <run>`.
 - Build order in stages 3 and 4: implement, then `sdlc.py mark` the attested items (marks

@@ -1,0 +1,430 @@
+"""The stage launcher: `sdlc.py stage <run> <n>` does commit, worktree, rules compile, launch prompt.
+
+Written before the implementation. Every refusal must leave the repo untouched.
+"""
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import tempfile
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+INIT = ROOT / 'scripts/init.py'
+PYTHON = shutil.which('python3')
+GIT = shutil.which('git')
+IDENT = {'GIT_AUTHOR_NAME': 'Launcher', 'GIT_AUTHOR_EMAIL': 'l@local',
+         'GIT_COMMITTER_NAME': 'Launcher', 'GIT_COMMITTER_EMAIL': 'l@local'}
+PASSING = {'argv': ['python3', '-c', 'pass'], 'timeout_seconds': 20}
+DIRS = {1: ('plan', '01-plan'), 2: ('design', '02-design'), 3: ('build', '03-build'),
+        5: ('deploy', '05-deploy'), 6: ('maintain', '06-maintain')}
+
+
+def tree_hash(root):
+    digest = hashlib.sha256()
+    for path in sorted(Path(root).rglob('*')):
+        rel = path.relative_to(root)
+        if rel.parts[0] == '.git':
+            continue
+        if path.is_symlink():
+            digest.update(f'L {rel} {os.readlink(path)}\n'.encode())
+        elif path.is_dir():
+            digest.update(f'D {rel}\n'.encode())
+        else:
+            digest.update(f'F {rel} '.encode() + path.read_bytes() + b'\n')
+    return digest.hexdigest()
+
+
+class StageBase(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        base = Path(self.temp.name).resolve()
+        self.base = base
+        self.root = base / 'work' / 'proj'
+        self.root.mkdir(parents=True)
+        self.bin = base / 'bin'
+        self.bin.mkdir()
+        self.log = base / 'tink.log'
+        shim = self.bin / 'tink'
+        shim.write_text('#!/bin/sh\necho "$PWD|$*" >> "$TINK_LOG"\n'
+                        'if [ -n "$TINK_FAIL" ]; then echo "boom: bad pin" >&2; echo "second line" >&2; exit 1; fi\n'
+                        'echo "compiled"\nexit 0\n')
+        shim.chmod(0o755)
+        self.home = base / 'home'
+        self.home.mkdir()
+        self.env = {'PATH': f'{self.bin}:{Path(PYTHON).parent}:{Path(GIT).parent}:/usr/bin:/bin', 'HOME': str(self.home),
+                    'TINK_LOG': str(self.log), 'GIT_CONFIG_GLOBAL': '/dev/null', 'GIT_CONFIG_NOSYSTEM': '1'}
+        self.run_cmd([PYTHON, str(INIT), str(self.root)], cwd=self.root)
+        self.git('init', '-q', '-b', 'main')
+        self.git('add', '-A')
+        self.git('commit', '-qm', 'baseline', env=IDENT)
+
+    # helpers
+    def run_cmd(self, argv, cwd=None, env=None, ok=True):
+        result = subprocess.run(argv, cwd=cwd or '/', capture_output=True, text=True, env=env if env is not None else self.env)
+        if ok is not None:
+            self.assertEqual(result.returncode == 0, ok, ' '.join(argv) + '\n' + result.stdout + result.stderr)
+        return result
+
+    def git(self, *args, cwd=None, env=None, ok=True):
+        merged = {**self.env, **(env or {})}
+        return self.run_cmd([GIT, *args], cwd=cwd or self.root, env=merged, ok=ok)
+
+    def sdlc(self, *args, cwd='/', env=None, root=None):
+        script = (root or self.root) / '_system/scripts/sdlc.py'
+        return self.run_cmd([PYTHON, str(script), *args], cwd=cwd, env={**self.env, **(env or {})}, ok=None)
+
+    def stage(self, run, n, *extra, ok=True, env=None, cwd='/'):
+        result = self.sdlc('stage', run, str(n), *extra, env=env, cwd=cwd)
+        self.assertEqual(result.returncode == 0, ok, result.stdout + result.stderr)
+        return result
+
+    def decide(self, run, stage):
+        result = self.sdlc('decide', run, str(stage), 'approved', '--reviewer', 'h', '--source', 's', '--reason', 'r')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def new_run(self, run, profile='light', approve=True, check=PASSING):
+        self.assertEqual(self.sdlc('new', run, '--profile', profile).returncode, 0)
+        run_dir = self.root / 'runs' / run
+        (run_dir / 'checklist.json').write_text(json.dumps({'schema': 1, 'items': [
+            {'id': 'a', 'description': 'd', 'verify': 'v', **({'check': check} if check else {})}]}))
+        if approve:
+            for s in ([3] if profile == 'light' else [1, 2, 3]):
+                self.decide(run, s)
+
+    def set_checks(self, checks):
+        (self.root / '_system/verification.json').write_text(json.dumps({'require_tink': False, 'checks': checks}))
+
+    def snapshot_state(self):
+        return (tree_hash(self.root), self.git('worktree', 'list').stdout, self.git('log', '--oneline', '--all').stdout,
+                self.git('branch', '--list').stdout, self.git('status', '--porcelain').stdout, sorted(p.name for p in self.root.parent.iterdir()))
+
+    def refuses(self, *args, message, env=None):
+        before = self.snapshot_state()
+        result = self.stage(*args, ok=False, env=env)
+        self.assertIn(message, result.stderr)
+        self.assertTrue(result.stderr.startswith('Error: '))
+        self.assertNotIn('Launch prompt', result.stdout)
+        self.assertEqual(self.snapshot_state(), before)
+        return result
+
+    def tink_calls(self):
+        return self.log.read_text().splitlines() if self.log.exists() else []
+
+    def commit_run(self):
+        self.git('add', '-A')
+        self.git('commit', '-qm', 'setup', env=IDENT)
+
+
+class Refusals(StageBase):
+    def test_missing_run(self):
+        self.refuses('ghost', 1, message='Run is missing')
+
+    def test_stage_four_is_refused(self):
+        self.new_run('r')
+        self.refuses('r', 4, message='stage 4 runs inside the stage-3 session (see stages/04-test/CONTEXT.md)')
+
+    def test_stage_out_of_range(self):
+        self.new_run('r')
+        self.refuses('r', 7, message='stage must be one of')
+
+    def test_light_refuses_stage_two(self):
+        self.new_run('r')
+        self.refuses('r', 2, message='light runs define in stage 1; the single definition gate is recorded as stage 3')
+
+    def test_light_stage_three_needs_gate(self):
+        self.new_run('r', approve=False)
+        result = self.refuses('r', 3, message='stage 3')
+        self.assertIn('sdlc.py decide r 3 approved', result.stderr)
+
+    def test_light_stage_three_stale_gate(self):
+        self.new_run('r')
+        (self.root / 'runs/r/brief.md').write_text('changed after approval\n')
+        result = self.refuses('r', 3, message='stage 3')
+        self.assertIn('stale', result.stderr)
+
+    def test_full_stage_two_needs_stage_one(self):
+        self.new_run('f', profile='full', approve=False)
+        result = self.refuses('f', 2, message='stage 1')
+        self.assertIn('sdlc.py decide f 1 approved', result.stderr)
+
+    def test_full_stage_three_gate_combinations(self):
+        self.new_run('f', profile='full', approve=False)
+        self.refuses('f', 3, message='stage 1')
+        self.decide('f', 1)
+        result = self.refuses('f', 3, message='stage 2')
+        self.assertIn('sdlc.py decide f 2 approved', result.stderr)
+        self.decide('f', 2)
+        self.stage('f', 3, '--check', env=IDENT)  # both entry gates now current; no third gate is required
+
+    def test_full_stage_two_ok_with_stage_one(self):
+        self.new_run('f', profile='full', approve=False)
+        self.decide('f', 1)
+        self.assertIn('Begin stage 2 (design)', self.stage('f', 2, '--check').stdout)
+
+    def test_stage_five_needs_every_gate(self):
+        self.new_run('f', profile='full', approve=False)
+        self.decide('f', 1)
+        self.decide('f', 2)
+        result = self.refuses('f', 5, message='stage 3')
+        self.assertIn('sdlc.py decide f 3 approved', result.stderr)
+
+    def test_stage_six_needs_every_gate(self):
+        self.new_run('r', approve=False)
+        self.refuses('r', 6, message='stage 3')
+
+    def test_stage_five_needs_verification(self):
+        self.new_run('r')
+        self.refuses('r', 5, message='run verify first: stage 5 reviews current evidence')
+
+    def test_no_identity_refused_before_any_write(self):
+        self.new_run('r')
+        self.refuses('r', 3, message='committer identity', env={'HOME': str(self.home)})
+
+    def test_worktree_and_here_are_a_usage_error(self):
+        self.new_run('r')
+        result = self.stage('r', 3, '--here', '--worktree', str(self.base / 'x'), ok=False)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('not allowed with', result.stderr)
+        self.assertIn('Commands:', result.stderr)
+        self.assertIn('stage', result.stderr.split('Commands:')[1])
+
+    def test_path_exists_refused(self):
+        self.new_run('r')
+        target = self.root.parent / 'proj-r'
+        target.mkdir()
+        result = self.refuses('r', 3, message=str(target), env=IDENT)
+        self.assertIn('git worktree remove', result.stderr)
+
+    def test_branch_exists_refused(self):
+        self.new_run('r')
+        self.git('branch', 'r')
+        result = self.refuses('r', 3, message="branch 'r' already exists", env=IDENT)
+        self.assertIn('git branch -D r', result.stderr)
+
+    def test_pre_intent_missing_refused(self):
+        self.new_run('r')
+        self.refuses('r', 1, '--pre-intent', str(self.root / 'nope.md'), message='pre-intent')
+
+    def test_pre_intent_only_for_stage_one(self):
+        self.new_run('r')
+        (self.root / 'pi.md').write_text('x')
+        self.refuses('r', 3, '--pre-intent', str(self.root / 'pi.md'), message='stage 1', env=IDENT)
+
+
+class HereMode(StageBase):
+    def test_stage_one_here(self):
+        self.new_run('r', approve=False)
+        result = self.stage('r', 1)
+        self.assertEqual(self.tink_calls(), [f'{self.root}|use planning-skillset --snapshot runs/r/01-plan'])
+        lines = result.stdout.splitlines()
+        self.assertEqual(lines[-3:], [f'Checkout: {self.root}', 'Launch prompt (start a NEW session there):',
+                                      'Begin stage 1 (plan) of SDLC run `r`.'])
+        self.assertEqual(self.git('log', '--oneline').stdout.count('\n'), 1)  # no commit in --here mode
+
+    def test_stage_one_pre_intent_repo_relative(self):
+        self.new_run('r', approve=False)
+        (self.root / 'pre-intent.md').write_text('idea\n')
+        result = self.stage('r', 1, '--pre-intent', 'pre-intent.md', cwd=self.root)
+        self.assertEqual(result.stdout.splitlines()[-1],
+                         'Begin stage 1 (plan) of SDLC run `r`. The operator-confirmed pre-intent is at pre-intent.md; '
+                         'it is input, not authorization.')
+
+    def test_stage_one_pre_intent_absolute_outside_repo(self):
+        self.new_run('r', approve=False)
+        outside = self.base / 'notes.md'
+        outside.write_text('idea\n')
+        result = self.stage('r', 1, '--pre-intent', str(outside))
+        self.assertIn(f'pre-intent is at {outside};', result.stdout.splitlines()[-1])
+
+    def test_stage_two_and_six_default_here(self):
+        self.new_run('f', profile='full', approve=False)
+        self.decide('f', 1)
+        out = self.stage('f', 2).stdout
+        self.assertIn(f'Checkout: {self.root}', out)
+        self.assertEqual(self.tink_calls(), [f'{self.root}|use design-skillset --snapshot runs/f/02-design'])
+        self.new_run('r')
+        self.stage('r', 6)
+        self.assertEqual(self.tink_calls()[-1], f'{self.root}|use maintenance-skillset --snapshot runs/r/06-maintain')
+
+    def test_here_flag_forces_current_checkout_for_build(self):
+        self.new_run('r')
+        out = self.stage('r', 3, '--here').stdout
+        self.assertIn(f'Checkout: {self.root}', out)
+        self.assertEqual(self.tink_calls(), [f'{self.root}|use build-skillset --snapshot runs/r/03-build'])
+        self.assertEqual(self.git('worktree', 'list').stdout.count('\n'), 1)
+
+    def test_idempotent_rerun(self):
+        self.new_run('r')
+        self.stage('r', 3, '--here')
+        state = self.snapshot_state()
+        self.stage('r', 3, '--here')
+        self.assertEqual(self.snapshot_state(), state)
+        self.assertEqual(len(self.tink_calls()), 2)
+
+    def test_tink_absent_notice_still_prints_prompt(self):
+        self.new_run('r', approve=False)
+        dirs = {str(Path(PYTHON).parent), str(Path(GIT).parent)}
+        if any((Path(d) / 'tink').exists() for d in dirs):
+            self.skipTest('a real tink shares a directory with python3/git')
+        result = self.stage('r', 1, env={'PATH': ':'.join(sorted(dirs))})
+        self.assertIn('skills: skipped (tink not installed); the agent will run without stage disciplines', result.stdout)
+        self.assertEqual(result.stdout.splitlines()[-1], 'Begin stage 1 (plan) of SDLC run `r`.')
+        self.assertEqual(self.tink_calls(), [])
+
+    def test_no_skillset_line_gives_notice(self):
+        context = self.root / 'stages/01-plan/CONTEXT.md'
+        context.write_text(context.read_text().replace('Skillset: `planning-skillset`', 'Skillset: none'))
+        self.new_run('r', approve=False)
+        result = self.stage('r', 1)
+        self.assertIn('skills: skipped (stages/01-plan/CONTEXT.md names no skillset)', result.stdout)
+        self.assertEqual(self.tink_calls(), [])
+        self.assertEqual(result.stdout.splitlines()[-1], 'Begin stage 1 (plan) of SDLC run `r`.')
+
+    def test_tink_failure_fails_closed(self):
+        self.new_run('r', approve=False)
+        result = self.stage('r', 1, ok=False, env={'TINK_FAIL': '1'})
+        self.assertIn('boom: bad pin', result.stderr)
+        self.assertNotIn('second line', result.stderr)
+        self.assertIn('stage not opened: fix the skillset problem above', result.stderr)
+        self.assertNotIn('Launch prompt', result.stdout)
+        self.assertNotIn('Begin stage', result.stdout)
+
+    def test_check_writes_nothing(self):
+        self.new_run('r')
+        before = self.snapshot_state()
+        result = self.stage('r', 3, '--check', env=IDENT)
+        self.assertEqual(self.snapshot_state(), before)
+        self.assertEqual(self.tink_calls(), [])
+        out = result.stdout
+        self.assertIn('Would commit: yes', out)
+        self.assertIn(f'Would create worktree: {self.root.parent}/proj-r (branch r)', out)
+        self.assertIn('Would run: tink use build-skillset --snapshot runs/r/03-build', out)
+        self.assertEqual(out.splitlines()[-1], 'Begin stage 3 (build) of SDLC run `r`.')
+
+    def test_check_here_and_without_tink(self):
+        self.new_run('r', approve=False)
+        out = self.stage('r', 1, '--check').stdout
+        self.assertIn('Would commit: no', out)
+        self.assertIn('Would create worktree: none', out)
+        dirs = {str(Path(PYTHON).parent), str(Path(GIT).parent)}
+        if not any((Path(d) / 'tink').exists() for d in dirs):
+            out = self.stage('r', 1, '--check', env={'PATH': ':'.join(sorted(dirs))}).stdout
+            self.assertIn('skills: skipped (tink not installed)', out)
+
+
+class WorktreeMode(StageBase):
+    def test_light_build_opens_a_worktree(self):
+        self.new_run('r')
+        result = self.stage('r', 3, env=IDENT)
+        worktree = self.root.parent / 'proj-r'
+        self.assertTrue(worktree.is_dir())
+        # one new commit, touching only runs/r
+        self.assertEqual(self.git('log', '--oneline').stdout.count('\n'), 2)
+        self.assertEqual(self.git('log', '-1', '--format=%s').stdout.strip(), 'stage 3 open: r (approved artifacts and receipts)')
+        touched = set(self.git('show', '--name-only', '--format=', 'HEAD').stdout.split())
+        self.assertTrue(touched and all(name.startswith('runs/r/') for name in touched), touched)
+        self.assertEqual(self.git('branch', '--show-current', cwd=worktree).stdout.strip(), 'r')
+        self.assertEqual(self.git('rev-parse', 'r').stdout, self.git('rev-parse', 'HEAD').stdout)
+        self.assertEqual(self.tink_calls(), [f'{worktree}|use build-skillset --snapshot runs/r/03-build'])
+        status = self.run_cmd(['_system/scripts/status.sh', 'r'], cwd=worktree)
+        self.assertIn('Stage 3: approved', status.stdout)
+        self.assertEqual(result.stdout.splitlines()[-3:], [f'Checkout: {worktree}', 'Launch prompt (start a NEW session there):',
+                                                            'Begin stage 3 (build) of SDLC run `r`.'])
+        self.assertEqual(self.git('status', '--porcelain', '--', 'runs/r').stdout, '')
+
+    def test_walk_lint_still_passes_after_a_launch(self):
+        self.new_run('r')
+        self.stage('r', 3, env=IDENT)
+        worktree = self.root.parent / 'proj-r'
+        walk = self.sdlc('walk', root=worktree, cwd=worktree)
+        self.assertEqual(walk.returncode, 0, walk.stdout + walk.stderr)
+
+    def test_no_commit_when_nothing_changed(self):
+        self.new_run('r')
+        self.commit_run()
+        before = self.git('log', '--oneline').stdout
+        out = self.stage('r', 3, '--check').stdout
+        self.assertIn('Would commit: no', out)
+        self.stage('r', 3, env=IDENT)
+        self.assertEqual(self.git('log', '--oneline').stdout, before)
+
+    def test_custom_worktree_path(self):
+        self.new_run('r')
+        target = self.base / 'elsewhere' / 'wt'
+        self.stage('r', 3, '--worktree', str(target), env=IDENT)
+        self.assertEqual(self.git('branch', '--show-current', cwd=target).stdout.strip(), 'r')
+
+    def test_dirty_files_warning(self):
+        self.new_run('r')
+        (self.root / 'stray.txt').write_text('x')
+        result = self.stage('r', 3, env=IDENT)
+        self.assertIn('warning: not carried into the new checkout: stray.txt', result.stdout)
+        self.assertFalse((self.root.parent / 'proj-r/stray.txt').exists())
+        self.assertNotIn('runs/r', result.stdout.split('warning:')[1].split('\n')[0])
+
+    def test_warning_lists_at_most_five(self):
+        self.new_run('r')
+        for i in range(8):
+            (self.root / f'stray{i}.txt').write_text('x')
+        line = [l for l in self.stage('r', 3, env=IDENT).stdout.splitlines() if l.startswith('warning:')][0]
+        self.assertEqual(line.count('stray'), 5)
+
+    def test_other_staged_files_are_not_committed(self):
+        self.new_run('r')
+        (self.root / 'other.txt').write_text('x')
+        self.git('add', 'other.txt')
+        self.stage('r', 3, env=IDENT)
+        touched = set(self.git('show', '--name-only', '--format=', 'HEAD').stdout.split())
+        self.assertNotIn('other.txt', touched)
+
+    def test_stage_five_needs_current_verification_then_detached_review_worktree(self):
+        self.set_checks([PASSING])
+        self.new_run('r')
+        self.commit_run()
+        self.refuses('r', 5, message='run verify first: stage 5 reviews current evidence')
+        verify = self.run_cmd([str(self.root / '_system/scripts/verify.sh'), 'r'], cwd=self.root)
+        self.assertIn('passed', verify.stdout)
+        result = self.stage('r', 5, env=IDENT)
+        review = self.root.parent / 'proj-review-r'
+        self.assertTrue(review.is_dir())
+        self.assertEqual(self.git('branch', '--show-current', cwd=review).stdout.strip(), '')
+        self.assertIn('(detached HEAD)', self.git('worktree', 'list').stdout)
+        self.assertEqual(self.tink_calls(), [f'{review}|use deployment-skillset --snapshot runs/r/05-deploy'])
+        self.assertEqual(result.stdout.splitlines()[-3:], [f'Checkout: {review}', 'Launch prompt (start a NEW session there):',
+                                                            'Begin stage 5 (deploy) of SDLC run `r`.'])
+
+    def test_stage_five_refuses_stale_verification(self):
+        self.set_checks([PASSING])
+        self.new_run('r')
+        self.commit_run()
+        self.run_cmd([str(self.root / '_system/scripts/verify.sh'), 'r'], cwd=self.root)
+        (self.root / 'code.py').write_text('changed after verification\n')
+        self.refuses('r', 5, message='run verify first: stage 5 reviews current evidence', env=IDENT)
+
+    def test_tink_failure_leaves_worktree_and_names_it(self):
+        self.new_run('r')
+        result = self.stage('r', 3, ok=False, env={**IDENT, 'TINK_FAIL': '1'})
+        worktree = self.root.parent / 'proj-r'
+        self.assertTrue(worktree.is_dir())
+        self.assertIn(str(worktree), result.stderr)
+        self.assertIn('stage not opened: fix the skillset problem above', result.stderr)
+        self.assertNotIn('Launch prompt', result.stdout)
+
+    def test_worktree_failure_after_commit_says_what_was_committed(self):
+        self.new_run('r')
+        blocker = self.base / 'blocker'
+        blocker.write_text('a file, not a directory')
+        result = self.stage('r', 3, '--worktree', str(blocker / 'wt'), ok=False, env=IDENT)
+        head = self.git('rev-parse', '--short', 'HEAD').stdout.strip()
+        self.assertIn('worktree creation failed', result.stderr)
+        self.assertIn(f'already committed {head}: stage 3 open: r (approved artifacts and receipts)', result.stderr)
+        self.assertNotIn('Launch prompt', result.stdout)
+        self.assertEqual(self.tink_calls(), [])
+
+
+if __name__ == '__main__':
+    unittest.main()
