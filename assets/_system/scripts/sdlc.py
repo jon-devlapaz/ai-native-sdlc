@@ -324,10 +324,10 @@ def test_lock(path):
 
 
 def manual_marks(path):
-    """Latest receipt time per attested (check-less) item, so any later mark, pass or fail, stales verification."""
+    """Digest of the latest receipt per attested (check-less) item: a later mark, or an edited receipt, stales verification."""
     items = load_checklist(path) or []
     latest = marks(path, items)
-    return {item['id']: latest[item['id']]['time_ns'] for item in items if 'check' not in item and item['id'] in latest}
+    return {item['id']: digest(encoded(latest[item['id']])) for item in items if 'check' not in item and item['id'] in latest}
 
 
 def evidence_inputs(path):
@@ -933,8 +933,24 @@ def stage_identity_ok():
     return True
 
 
-PRE_INTENT_CONFIRMED = re.compile(r'confirmed for intake|^\W*status:\s*confirmed\b', re.I | re.M)
-PRE_INTENT_NOT_CONFIRMED = re.compile(r'unconfirmed|simulated|^\W*status:\s*draft\b', re.I | re.M)
+PRE_INTENT_STATUS = re.compile(r'^[\W_]*(?:seed contract\s*[—–-]+\s*|status:[\W_]*)?(?P<s>\S.*)$', re.I)
+PRE_INTENT_ACCEPTED = re.compile(r'confirmed for intake\b|confirmed(?![-\w])', re.I)
+PRE_INTENT_LATER_STATUS = re.compile(r'^[\W_]*status:[\W_]*(?P<s>.*)$', re.I)
+
+
+def pre_intent_confirmed(text):
+    """Confirmed only when the first line's status reads confirmed and no later `status:` line says otherwise."""
+    lines = [line for line in text.splitlines() if line.strip()]
+    if not lines:
+        return False
+    head = PRE_INTENT_STATUS.match(lines[0])
+    if not head or not PRE_INTENT_ACCEPTED.match(head.group('s')):
+        return False
+    for line in lines[1:]:
+        later = PRE_INTENT_LATER_STATUS.match(line)
+        if later and not PRE_INTENT_ACCEPTED.match(later.group('s')):
+            return False
+    return True
 
 
 def stage_pre_intent(value):
@@ -947,7 +963,7 @@ def stage_pre_intent(value):
         raise ValueError(f'pre-intent must be an existing regular file: {value}')
     data = resolved.read_bytes()
     text = data.decode('utf-8', errors='replace')
-    if not PRE_INTENT_CONFIRMED.search(text) or PRE_INTENT_NOT_CONFIRMED.search(text):
+    if not pre_intent_confirmed(text):
         raise ValueError(f'pre-intent is not confirmed: {value} must say "confirmed for intake" (or "status: confirmed") '
                          'and must not say unconfirmed, simulated or draft; confirm it with the operator in seed-me first')
     try:
