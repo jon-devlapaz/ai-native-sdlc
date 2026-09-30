@@ -10,14 +10,11 @@
     "principle-guard-the-context-window",
     "principle-make-operations-idempotent",
     "principle-migrate-callers-then-delete-legacy-apis",
+    "principle-prove-it-works",
     "reflect",
     "setup-pstack"
   ],
   "required": [
-    "principle-encode-lessons-in-structure",
-    "principle-fix-root-causes",
-    "principle-guard-the-context-window",
-    "principle-make-operations-idempotent",
-    "principle-migrate-callers-then-delete-legacy-apis"
+    "principle-prove-it-works"
   ]
 }

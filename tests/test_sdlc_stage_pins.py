@@ -18,6 +18,18 @@ STAGES = {
 PINS = ASSETS / '.tink/skillsets'
 
 
+# Chosen with Jev (fit of each discipline as an always-on rule per stage); stage-specific
+# conditional principles stay on the shelf as routed skills, not always-on rules.
+CURATED_REQUIRED = {
+    'planning-skillset': {'principle-build-the-lever'},
+    'design-skillset': {'principle-build-the-lever', 'architect', 'principle-foundational-thinking'},
+    'build-skillset': {'principle-build-the-lever', 'unslop'},
+    'testing-skillset': {'principle-build-the-lever', 'principle-prove-it-works'},
+    'deployment-skillset': {'principle-prove-it-works'},
+    'maintenance-skillset': {'principle-prove-it-works'},
+}
+
+
 class StagePinTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -52,7 +64,7 @@ class StagePinTests(unittest.TestCase):
                 self.assertTrue(required)
                 self.assertEqual(len(required), len(set(required)))
                 self.assertLessEqual(set(required), set(members))
-                self.assertEqual(set(required), {m for m in members if m.startswith('principle-')})
+                self.assertEqual(set(required), CURATED_REQUIRED[name])
                 self.assertNotIn('seed-me', members)
                 self.assertLessEqual(set(pin), {'source', 'revision', 'sourceRoot', 'members', 'required'})
 
@@ -60,7 +72,7 @@ class StagePinTests(unittest.TestCase):
         files = json.loads((ASSETS / 'manifest.json').read_text())['files']
         for name in STAGES.values():
             self.assertIn(f'.tink/skillsets/{name}.json', files)
-        self.assertEqual(json.loads((ASSETS / 'manifest.json').read_text())['version'], '1.7.0')
+        self.assertEqual(json.loads((ASSETS / 'manifest.json').read_text())['version'], '1.8.0')
 
     def test_no_gitignore_hides_pins(self):
         self.assertFalse(list(ASSETS.rglob('.gitignore')))
