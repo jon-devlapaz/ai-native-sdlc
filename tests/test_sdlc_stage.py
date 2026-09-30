@@ -405,6 +405,46 @@ class WorktreeMode(StageBase):
         (self.root / 'code.py').write_text('changed after verification\n')
         self.refuses('r', 5, message='run verify first: stage 5 reviews current evidence', env=IDENT)
 
+    def review_candidate_setup(self, module='cand'):
+        """A committed baseline module plus a check that only passes on the changed contents."""
+        (self.root / 'cand.py').write_text('value = "baseline"\n')
+        self.git('add', 'cand.py')
+        self.git('commit', '-qm', 'baseline cand', env=IDENT)
+        self.set_checks([{'argv': ['python3', '-c', f'import {module}; assert {module}.value == "verified"'], 'timeout_seconds': 20}])
+        self.new_run('r')
+        self.commit_run()
+
+    def verify_run(self):
+        return self.run_cmd([str(self.root / '_system/scripts/verify.sh'), 'r'], cwd=self.root)
+
+    def test_stage_five_refuses_dirty_candidate_that_passed_verification(self):
+        for variant in ('unstaged', 'staged', 'untracked'):
+            with self.subTest(variant=variant):
+                self.tearDown_fixture = None
+                self.setUp()
+                self.review_candidate_setup(module='newmod' if variant == 'untracked' else 'cand')
+                if variant == 'untracked':
+                    (self.root / 'newmod.py').write_text('value = "verified"\n')
+                else:
+                    (self.root / 'cand.py').write_text('value = "verified"\n')
+                    if variant == 'staged':
+                        self.git('add', 'cand.py')
+                self.verify_run()
+                result = self.refuses('r', 5, message='commit the candidate changes', env=IDENT)
+                self.assertIn('cand.py' if variant != 'untracked' else 'newmod.py', result.stderr)
+
+    def test_stage_five_opens_when_the_verified_candidate_is_committed(self):
+        self.review_candidate_setup()
+        (self.root / 'cand.py').write_text('value = "verified"\n')
+        self.git('add', 'cand.py')
+        self.git('commit', '-qm', 'implementation', env=IDENT)
+        self.verify_run()
+        self.stage('r', 5, env=IDENT)
+        review = self.root.parent / 'proj-review-r'
+        self.assertEqual((review / 'cand.py').read_text(), 'value = "verified"\n')
+        status = self.sdlc('status', 'r', root=review, cwd=review)
+        self.assertIn('Verification: current', status.stdout)
+
     def test_tink_failure_leaves_worktree_and_names_it(self):
         self.new_run('r')
         result = self.stage('r', 3, ok=False, env={**IDENT, 'TINK_FAIL': '1'})

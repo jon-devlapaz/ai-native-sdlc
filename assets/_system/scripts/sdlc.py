@@ -932,6 +932,23 @@ def stage_dirty(run):
     return [p for p in paths if not p.startswith(f'runs/{run}/') and p not in (f'runs/{run}', f'runs/.{run}.lock')]
 
 
+def candidate_dirty(run):
+    """Uncommitted paths that are part of the verified candidate (what verify fingerprints), not disposable caches or generated rules."""
+    dirty = []
+    for relative in stage_dirty(run):
+        parts = Path(relative).parts
+        tracked = bool(run_git(ROOT, 'ls-files', '--error-unmatch', '--', relative).returncode == 0)
+        if not tracked and (any(part in {'__pycache__', '.pytest_cache', '.ruff_cache'} for part in parts)
+                            or Path(relative).suffix in {'.pyc', '.pyo'}):
+            continue
+        if relative == 'AGENTS.md' and tracked:
+            head = run_git(ROOT, 'show', 'HEAD:AGENTS.md')
+            if head.returncode == 0 and strip_generated_rules((ROOT / relative).read_bytes()) == strip_generated_rules(head.stdout.encode()):
+                continue
+        dirty.append(relative)
+    return dirty
+
+
 def stage(args):
     run, n = args.run, args.n
     path = run_path(run)
@@ -948,6 +965,12 @@ def stage(args):
     if top.returncode or Path(top.stdout.strip()).resolve() != ROOT:
         raise ValueError('the scaffold must sit at the root of a git repository')
     stage_entry_gates(path, run, n)
+    if n == 5:
+        dirty = candidate_dirty(run)
+        if dirty:
+            raise ValueError('stage 5 reviews a commit, and these candidate changes are uncommitted: ' + ', '.join(dirty[:5])
+                             + (f' (+{len(dirty) - 5} more)' if len(dirty) > 5 else '')
+                             + '; commit the candidate changes, then run verify again')
     pre_intent = stage_pre_intent(args.pre_intent) if args.pre_intent else None
     skillset = stage_skillset(n)
     stage_dir = STAGE_DIRS[n]
