@@ -493,7 +493,7 @@ def mark(args):
             raise ValueError(f'Unknown checklist item: {args.item} (items: {ids})')
         if any(item['id'] == args.item and 'check' in item for item in items):
             raise ValueError(f'item {args.item} has an executable check; run verify to prove it '
-                             f'(its check runs during: _system/scripts/verify.sh {args.run})')
+                             f'(its check runs during: python3 _system/scripts/sdlc.py verify {args.run})')
         if gate(path, 3) != 'approved':
             raise ValueError('Stage 3 needs a current approval receipt before items can be marked.')
         now = time.time_ns()
@@ -811,27 +811,25 @@ def tail_lines(text, count=3):
 
 def walk_w6(root):
     name = 'status-derivable'
-    script = root / '_system/scripts/status.sh'
-    if not script.is_file() or not os.access(script, os.X_OK):
-        return walk_result('W6', name, 'fail', 'status.sh is missing or not executable', 'Status must be derivable by running the script.', ['_system/scripts/status.sh'])
+    script = root / '_system/scripts/sdlc.py'
     runs_dir = root / 'runs'
     slugs = sorted(p.name for p in runs_dir.iterdir() if p.is_dir() and not p.name.startswith('.') and (p / 'run.json').is_file()) if runs_dir.is_dir() else []
     if not slugs:
-        return walk_result('W6', name, 'pass', 'status.sh is executable', 'no runs')
+        return walk_result('W6', name, 'pass', 'sdlc.py is present', 'no runs')
     bad = []
     for slug in slugs:
         try:
-            result = subprocess.run([str(script), slug], cwd=root, capture_output=True, text=True, timeout=WALK_TIMEOUT)
+            result = subprocess.run([sys.executable, str(script), 'status', slug], cwd=root, capture_output=True, text=True, timeout=WALK_TIMEOUT)
         except subprocess.TimeoutExpired:
-            bad.append(f'runs/{slug}: status.sh timed out after {WALK_TIMEOUT}s')
+            bad.append(f'runs/{slug}: status timed out after {WALK_TIMEOUT}s')
             continue
         except OSError as error:
-            bad.append(f'runs/{slug}: cannot run status.sh: {error}')
+            bad.append(f'runs/{slug}: cannot run status: {error}')
             continue
         if result.returncode != 0:
-            bad.append(f'runs/{slug}: status.sh exit {result.returncode}: ' + ' | '.join(tail_lines(result.stderr + '\n' + result.stdout)))
+            bad.append(f'runs/{slug}: status exit {result.returncode}: ' + ' | '.join(tail_lines(result.stderr + '\n' + result.stdout)))
     if bad:
-        return walk_result('W6', name, 'fail', f'{len(bad)} run(s) whose status cannot be derived', 'status.sh <slug> must exit 0.', bad)
+        return walk_result('W6', name, 'fail', f'{len(bad)} run(s) whose status cannot be derived', 'python3 _system/scripts/sdlc.py status <slug> must exit 0.', bad)
     return walk_result('W6', name, 'pass', f'status derivable for {len(slugs)} run(s)', '')
 
 
@@ -928,7 +926,7 @@ def stage_entry_gates(path, run, n):
             pass
         if not current:
             raise ValueError('run verify first: stage 5 reviews current evidence '
-                             f'(_system/scripts/verify.sh {run})')
+                             f'(python3 _system/scripts/sdlc.py verify {run})')
 
 
 def stage_identity_ok():

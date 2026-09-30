@@ -271,7 +271,7 @@ class W2Pointers(WalkBase):
         self.assertEqual(self.status_of('W2')['status'], 'fail')
 
     def test_command_span_with_trailing_args_uses_path_token(self):
-        self.append('stages/03-build/CONTEXT.md', '\nRun `_system/scripts/status.sh <slug>`.\n')
+        self.append('stages/03-build/CONTEXT.md', '\nRun `_system/scripts/sdlc.py <slug>`.\n')
         self.assertEqual(self.status_of('W2')['status'], 'pass')
         self.append('stages/03-build/CONTEXT.md', '\nRun `_system/scripts/gone.sh <slug>`.\n')
         self.assertEqual(self.status_of('W2')['status'], 'fail')
@@ -392,13 +392,10 @@ class W6Status(WalkBase):
         self.assertEqual(c['status'], 'pass')
         self.assertNotIn('no runs', c['detail'])
 
-    def test_non_executable_status_sh_fails(self):
-        self.path('_system/scripts/status.sh').chmod(0o644)
-        self.assertEqual(self.status_of('W6')['status'], 'fail')
-
-    def test_missing_status_sh_fails(self):
-        self.path('_system/scripts/status.sh').unlink()
-        self.assertEqual(self.status_of('W6')['status'], 'fail')
+    def test_status_is_derived_through_the_one_entry_point(self):
+        self.new_run('alpha')
+        self.assertFalse(list(self.path('_system/scripts').glob('*.sh')))
+        self.assertEqual(self.status_of('W6')['status'], 'pass')
 
     def test_corrupt_run_json_fails(self):
         self.new_run('alpha')

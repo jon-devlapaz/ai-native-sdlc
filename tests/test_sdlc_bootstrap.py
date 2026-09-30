@@ -2,6 +2,7 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -42,7 +43,7 @@ class BootstrapTests(unittest.TestCase):
         spec.loader.exec_module(module)
         with self.assertRaisesRegex(ValueError, 'nonempty check list'):
             module.checks_config()
-        result = subprocess.run(['bash', str(self.root / '_system/scripts/new-run.sh'), 'probe'], cwd='/', capture_output=True)
+        result = subprocess.run([sys.executable, str(self.root / '_system/scripts/sdlc.py'), 'new', 'probe'], cwd='/', capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((self.root / 'runs/probe/brief.md').is_file())
 
@@ -95,9 +96,9 @@ class BootstrapTests(unittest.TestCase):
 
     def test_missing_file_refused(self):
         self.run_init()
-        (self.root / '_system/scripts/status.sh').unlink()
+        (self.root / '_shared/REVIEW.md').unlink()
         self.run_init(ok=False)
-        self.assertFalse((self.root / '_system/scripts/status.sh').exists())
+        self.assertFalse((self.root / '_shared/REVIEW.md').exists())
 
     def test_force_not_supported(self):
         self.run_init('--force', ok=False)

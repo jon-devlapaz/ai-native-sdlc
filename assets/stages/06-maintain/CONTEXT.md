@@ -8,7 +8,7 @@ Before enabling automation, define suitable metric-specific thresholds, stable
 baselines, incident deduplication keys, cooldowns, and active-run limits. Do not
 assume universal 2-sigma/3-sigma thresholds are appropriate.
 
-Output: a new write run from `new-run.sh`, with observed evidence and affected
+Output: a new write run from `python3 _system/scripts/sdlc.py new`, with observed evidence and affected
 systems in its brief or intent. Repeated alerts update the existing incident
 instead of spawning duplicate work.
 Gate: service owner triages, dismisses, schedules, or approves the draft through
