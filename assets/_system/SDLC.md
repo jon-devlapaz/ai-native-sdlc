@@ -21,7 +21,7 @@ python3 _system/scripts/sdlc.py decide fix-example 3 approved \
   --reason 'Accepted scope, approach, and acceptance criteria'
 ```
 
-Full runs record decisions for stages 1, 2, and 3 in order. Markdown stays editable. `changes-requested` records rejection using the same command. Editing an artifact or contract makes dependent decisions stale; older receipts remain available. No agent should invent a reviewer or approval. These local receipts track workflow; they do not authenticate identity or authorize a release.
+Light runs have ONE definition gate, recorded as stage 3 (`sdlc.py decide <run> 3 ...`): the approved `brief.md` + `checklist.json` are the intent, design and plan. Full runs record decisions for stages 1, 2, and 3 in order. Markdown stays editable. `changes-requested` records rejection using the same command. Editing an artifact or contract makes dependent decisions stale; older receipts remain available. No agent should invent a reviewer or approval. These local receipts track workflow; they do not authenticate identity or authorize a release.
 
 ## Checklist
 
@@ -41,7 +41,7 @@ Configure `_system/verification.json` with nonempty command argument arrays and 
 _system/scripts/verify.sh fix-example
 ```
 
-Verification writes the actual check output and a generated receipt under `04-test/output/`. The receipt binds the Git revision, tracked and nonignored untracked file contents/modes (excluding disposable untracked Python caches), artifact inputs, policy, test lock, and log digest. It excludes `runs/`; do not place application source or test infrastructure there. Ignored files and external services are outside this fingerprint: pin dependencies and environments in trusted CI. Commit code changes before final verification. The receipt records the observed commit for provenance; status compares candidate contents, so committing only run evidence does not invalidate unchanged code. CI must still verify the actual revision being merged. Avoid modifying the checkout while checks run.
+Verification writes the actual check output and a generated receipt under `04-test/output/`. The receipt binds the Git revision, tracked and nonignored untracked file contents/modes (excluding disposable untracked Python caches), artifact inputs, policy, test lock, and log digest. It excludes `runs/`; do not place application source or test infrastructure there. Ignored files and external services are outside this fingerprint: pin dependencies and environments in trusted CI. Generated `tink:rules` blocks in the root `AGENTS.md` are session context and are excluded from the candidate fingerprint (`sdlc.py walk` and `tink use --check` verify them); all other `AGENTS.md` text still counts. If the candidate changes while checks run, the error lists up to five changed paths and hints when tracked bytecode files are the cause. Commit code changes before final verification. The receipt records the observed commit for provenance; status compares candidate contents, so committing only run evidence does not invalidate unchanged code. CI must still verify the actual revision being merged. Avoid modifying the checkout while checks run.
 
 A preexisting log is never passing evidence. Failed or interrupted verification cannot reuse an older passing receipt. Local status is not deployment status.
 
@@ -58,6 +58,20 @@ python3 _system/scripts/sdlc.py lock-tests fix-example tests/test_regression.py 
 Include relevant fixtures, snapshots, discovery configuration, and runner helpers in the locked paths. Bug runs cannot verify without a lock; changed or missing locked files fail. A mistaken baseline requires an independently reviewed replacement run, linked to the previous one. This conservative PoC does not silently unlock tests.
 
 This detects local changes, not adversarial tampering. Strict protection requires CI to fetch the accepted test revision independently, protect verification policy, run against the candidate revision, and require the resulting check before merge. Agent-writable lock files and hooks are not an authorization boundary. This scaffold does not configure a forge or deployment environment.
+
+## Who does what at a stage boundary
+
+- The launcher (the human, or a script acting for them) records the gate and commits the
+  approved artifacts and receipts. It creates the run and the worktree, then runs
+  `tink use <skillset> --snapshot runs/<slug>/<stage-dir>` inside the checkout the agent
+  will use, and starts a NEW session with a one-line prompt naming the stage and run.
+- The agent never creates the run, never runs `tink use`, and never approves. It reads
+  `AGENTS.md`, its stage `CONTEXT.md`, and `_system/scripts/status.sh <run>`.
+- Build order in stages 3 and 4: implement, then `sdlc.py mark` the attested items (marks
+  need an approved gate), then `verify.sh`. Checked items are proven by `verify` and need no
+  mark. Commit before verifying, because the candidate fingerprint includes uncommitted files.
+- The reviewer works in a separate checkout, writes
+  `runs/<slug>/05-deploy/output/REVIEW-findings.md`, and does not modify code or evidence.
 
 ## Skills and concurrency
 
