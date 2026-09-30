@@ -86,7 +86,7 @@ class StagePinTests(unittest.TestCase):
         files = json.loads((ASSETS / 'manifest.json').read_text())['files']
         for name in STAGES.values():
             self.assertIn(f'.tink/skillsets/{name}.json', files)
-        self.assertEqual(json.loads((ASSETS / 'manifest.json').read_text())['version'], '1.14.0')
+        self.assertEqual(json.loads((ASSETS / 'manifest.json').read_text())['version'], '1.15.0')
 
     def test_no_gitignore_hides_pins(self):
         self.assertFalse(list(ASSETS.rglob('.gitignore')))
@@ -163,7 +163,7 @@ class StagePinTests(unittest.TestCase):
         self.assertEqual(text.count('## Stage skills'), 1)
         for needle in ['seed-me', 'tink skill add jon-devlapaz/tink-skills --skill seed-me',
                        'tink library fetch', 'tink use', 'tink-route --receipt', '--anywhere', 'Hint:', '.tink/skillsets/',
-                       'required', 'AGENTS.md', 'pre-intent', 'optional']:
+                       'required', 'AGENTS.md', 'seed contract', 'optional']:
             self.assertIn(needle, text)
 
     def test_router_names_the_ad_hoc_skill_command_once_inside_the_markers(self):

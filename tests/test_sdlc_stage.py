@@ -210,14 +210,14 @@ class Refusals(StageBase):
         result = self.refuses('r', 3, message="branch 'r' already exists", env=IDENT)
         self.assertIn('git branch -D r', result.stderr)
 
-    def test_pre_intent_missing_refused(self):
+    def test_seed_contract_missing_refused(self):
         self.new_run('r')
-        self.refuses('r', 1, '--pre-intent', str(self.root / 'nope.md'), message='pre-intent')
+        self.refuses('r', 1, '--seed-contract', str(self.root / 'nope.md'), message='seed contract')
 
-    def test_pre_intent_only_for_stage_one(self):
+    def test_seed_contract_only_for_stage_one(self):
         self.new_run('r')
         (self.root / 'pi.md').write_text('x')
-        self.refuses('r', 3, '--pre-intent', str(self.root / 'pi.md'), message='stage 1', env=IDENT)
+        self.refuses('r', 3, '--seed-contract', str(self.root / 'pi.md'), message='stage 1', env=IDENT)
 
 
 class HereMode(StageBase):
@@ -230,38 +230,38 @@ class HereMode(StageBase):
                                       'Begin stage 1 (plan) of SDLC run `r`.'])
         self.assertEqual(self.git('log', '--oneline').stdout.count('\n'), 1)  # no commit in --here mode
 
-    def test_stage_one_pre_intent_repo_relative(self):
+    def test_stage_one_seed_contract_repo_relative(self):
         self.new_run('r', approve=False)
-        (self.root / 'pre-intent.md').write_text(CONFIRMED)
-        result = self.stage('r', 1, '--pre-intent', 'pre-intent.md', cwd=self.root)
+        (self.root / 'seed-contract.md').write_text(CONFIRMED)
+        result = self.stage('r', 1, '--seed-contract', 'seed-contract.md', cwd=self.root)
         self.assertEqual(result.stdout.splitlines()[-1],
-                         'Begin stage 1 (plan) of SDLC run `r`. The operator-confirmed pre-intent is at pre-intent.md; '
+                         'Begin stage 1 (plan) of SDLC run `r`. The operator-confirmed seed contract is at seed-contract.md; '
                          'it is input, not authorization.')
 
-    def test_stage_one_pre_intent_absolute_outside_repo(self):
+    def test_stage_one_seed_contract_absolute_outside_repo(self):
         self.new_run('r', approve=False)
         outside = self.base / 'notes.md'
         outside.write_text(CONFIRMED)
-        result = self.stage('r', 1, '--pre-intent', str(outside))
-        self.assertIn(f'pre-intent is at {outside};', result.stdout.splitlines()[-1])
+        result = self.stage('r', 1, '--seed-contract', str(outside))
+        self.assertIn(f'seed contract is at {outside};', result.stdout.splitlines()[-1])
 
-    def test_confirmed_pre_intent_is_recorded_and_binds_approval(self):
+    def test_confirmed_seed_contract_is_recorded_and_binds_approval(self):
         self.new_run('r', approve=False)
         target = self.base / 'contract.md'
         target.write_text(CONFIRMED)
-        self.stage('r', 1, '--pre-intent', str(target))
-        recorded = json.loads((self.root / 'runs/r/run.json').read_text())['pre_intent']
+        self.stage('r', 1, '--seed-contract', str(target))
+        recorded = json.loads((self.root / 'runs/r/run.json').read_text())['seed_contract']
         self.assertEqual(recorded, {'path': str(target), 'sha256': hashlib.sha256(CONFIRMED.encode()).hexdigest()})
         self.decide('r', 3)
         self.assertIn('Stage 3: approved', self.sdlc('status', 'r').stdout)
         target.write_text('seed contract — confirmed for intake\nchanged scope\n')
         self.assertNotIn('Stage 3: approved', self.sdlc('status', 'r').stdout)
 
-    def test_decide_refuses_a_pre_intent_that_no_longer_matches_the_record(self):
+    def test_decide_refuses_a_seed_contract_that_no_longer_matches_the_record(self):
         self.new_run('r', approve=False)
         target = self.base / 'contract.md'
         target.write_text(CONFIRMED)
-        self.stage('r', 1, '--pre-intent', str(target))
+        self.stage('r', 1, '--seed-contract', str(target))
         for change in ('overwrite', 'delete'):
             with self.subTest(change=change):
                 if change == 'overwrite':
@@ -270,19 +270,19 @@ class HereMode(StageBase):
                     target.unlink()
                 result = self.sdlc('decide', 'r', '3', 'approved', '--reviewer', 'h', '--source', 's', '--reason', 'r')
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn('pre-intent', result.stderr)
+                self.assertIn('seed contract', result.stderr)
                 self.assertEqual(list((self.root / 'runs/r/decisions').glob('*.json')), [])
         target.write_text(CONFIRMED)
         self.decide('r', 3)
 
-    def test_worktree_launch_carries_the_pre_intent_binding(self):
+    def test_worktree_launch_carries_the_seed_contract_binding(self):
         self.new_run('r', approve=False)
         self.commit_run()
         target = self.base / 'contract.md'
         target.write_text(CONFIRMED)
-        self.stage('r', 1, '--worktree', str(self.base / 'wt1'), '--pre-intent', str(target), env=IDENT)
+        self.stage('r', 1, '--worktree', str(self.base / 'wt1'), '--seed-contract', str(target), env=IDENT)
         bound = json.loads((self.base / 'wt1/runs/r/run.json').read_text())
-        self.assertEqual(bound['pre_intent']['path'], str(target))
+        self.assertEqual(bound['seed_contract']['path'], str(target))
         self.assertEqual(self.git('status', '--porcelain', '--', 'runs/r').stdout.strip(), '')
 
     def test_failed_compile_leaves_no_empty_parent_directories(self):
@@ -653,7 +653,7 @@ class WorktreeMode(StageBase):
         self.route_log.unlink()
         target = self.base / 'contract.md'
         target.write_text('seed contract\n')
-        self.stage('p', 1, '--pre-intent', str(target), env=env)
+        self.stage('p', 1, '--seed-contract', str(target), env=env)
         self.assertEqual(Path(str(self.route_log) + '.doc').read_text(), 'seed contract\n')
         self.route_log.unlink()
         self.new_run('q', approve=False)

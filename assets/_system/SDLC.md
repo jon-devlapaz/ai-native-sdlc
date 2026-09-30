@@ -63,7 +63,7 @@ This detects local changes, not adversarial tampering. Strict protection require
 
 - The launcher (the human, or a script acting for them) records the gate, then runs
   `python3 _system/scripts/sdlc.py stage <run> <n>` (`--check` previews, `--worktree PATH` or `--here`
-  picks the checkout, `--pre-intent PATH` adds the confirmed pre-intent to a stage-1 prompt; pass only a pre-intent the operator has confirmed in seed-me (the launcher cannot tell, and does not guess from wording), and its path and sha256 are recorded in `run.json` and bound to approvals and verification, so editing it makes them stale). It commits
+  picks the checkout, `--seed-contract PATH` adds the confirmed seed contract to a stage-1 prompt; pass only a seed contract the operator has confirmed in seed-me (the launcher cannot tell, and does not guess from wording), and its path and sha256 are recorded in `run.json` and bound to approvals and verification, so editing it makes them stale). It commits
   `runs/<run>`, creates the worktree (stage 3: branch `<run>`; stage 5: detached review checkout),
   runs `tink use <skillset> --snapshot runs/<run>/<stage-dir>` inside it, and prints the launch prompt
   for a NEW session. It refuses unless the entry gates are approved and current (stage 5 also needs
@@ -81,7 +81,7 @@ This detects local changes, not adversarial tampering. Strict protection require
 
 Commit baseline `.tink/skills.toml` and `.tink/skills.lock` when Tink has created them through an authorized operation. Restore into each worktree through Tink; do not copy writable directories by symlink. Lockfile updates are reviewed dependency changes.
 
-At stage open `sdlc.py stage` also asks `tink-route --pick --anywhere` once, over the whole library, with the stage's whole input document as the question (stage 1 the pre-intent, 2 `intent.md`, 3 and 5 the brief or `spec.md`, 6 the review findings; no truncation, up to 120000 characters). The pick and the document's sha256 are recorded in `runs/<slug>/skills/stage-<n>-pick.json` and a routed skill is named in the launch prompt (read it with `tink mount <skill> --payload` before relying on it). Abstention, an over-long document, a missing router and any router error only print a line and record a receipt: the stage still opens. In our eval a document-only pick was correct on every routed case; it abstains on generic documents, so universal disciplines come from the stage's required rules, not the pick. Load mandatory skills deterministically. Route only genuine capability gaps with `tink-route`; allow abstention. `tink-route` does not mutate project skills: it mounts the delivered skill into the git-ignored `.active` directory inside `.tink`, prints it on stdout, and needs no cleanup. Run `tink` mutations through the wrapper:
+At stage open `sdlc.py stage` also asks `tink-route --pick --anywhere` once, over the whole library, with the stage's whole input document as the question (stage 1 the seed contract, 2 `intent.md`, 3 and 5 the brief or `spec.md`, 6 the review findings; no truncation, up to 120000 characters). The pick and the document's sha256 are recorded in `runs/<slug>/skills/stage-<n>-pick.json` and a routed skill is named in the launch prompt (read it with `tink mount <skill> --payload` before relying on it). Abstention, an over-long document, a missing router and any router error only print a line and record a receipt: the stage still opens. In our eval a document-only pick was correct on every routed case; it abstains on generic documents, so universal disciplines come from the stage's required rules, not the pick. Load mandatory skills deterministically. Route only genuine capability gaps with `tink-route`; allow abstention. `tink-route` does not mutate project skills: it mounts the delivered skill into the git-ignored `.active` directory inside `.tink`, prints it on stdout, and needs no cleanup. Run `tink` mutations through the wrapper:
 
 ```sh
 python3 _system/scripts/sdlc.py skills tink -- skill check
@@ -105,7 +105,7 @@ tink-route --receipt runs/<slug>/skills.jsonl "<what you need>"
 
 `tink-route` searches the whole skill library and never reads `AGENTS.md`, so the command is identical in every stage. In our routing eval 56% of the skills a stage needed were not on that stage's shelf, and the whole library was as precise as the shelf where both applied. `--skillset NAME` restricts a call to one skillset (exit 1 may then add `Hint: <skill> fits but is on another shelf (<skillset>); it was not delivered.`); `--anywhere` is the default spelled out.
 
-`seed-me` is human-invoked and belongs to no stage skillset. Install it separately with `tink skill add jon-devlapaz/tink-skills --skill seed-me`. Its confirmed pre-intent is the input to 01-plan: give the agent that file's path in the stage-1 launch prompt.
+`seed-me` is human-invoked and belongs to no stage skillset. Install it separately with `tink skill add jon-devlapaz/tink-skills --skill seed-me`. Its confirmed seed contract is the input to 01-plan: give the agent that file's path in the stage-1 launch prompt.
 
 `tink use` and `tink-route` are optional integrations; runs work without them. `tink-route` 0.10.0 or newer is required for whole-library routing (older versions scope routing to the stage shelf in the `AGENTS.md` rules block); `sdlc.py stage` warns when an older one is on PATH.
 
