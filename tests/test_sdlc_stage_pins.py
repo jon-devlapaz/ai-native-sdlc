@@ -68,11 +68,25 @@ class StagePinTests(unittest.TestCase):
                 self.assertNotIn('seed-me', members)
                 self.assertLessEqual(set(pin), {'source', 'revision', 'sourceRoot', 'members', 'required'})
 
+    def test_stage_contracts_list_the_required_skills_with_a_rule_and_the_hooks(self):
+        for directory, name in STAGES.items():
+            with self.subTest(stage=directory):
+                text = (ASSETS / 'stages' / directory / 'CONTEXT.md').read_text()
+                section = re.search(r'^Stage skills \(.*?\):\n((?:- .*\n)+)', text, re.M)
+                self.assertIsNotNone(section, 'no "Stage skills" list')
+                entries = re.findall(r'^- `([a-z0-9-]+)`: (.+)$', section.group(1), re.M)
+                self.assertEqual({skill for skill, _ in entries}, CURATED_REQUIRED[name])
+                for skill, rule in entries:
+                    self.assertGreaterEqual(len(rule), 30, skill)
+                    self.assertNotIn('Apply when', rule, f'{skill}: a hand-written rule, not the trigger description')
+                self.assertIn('read that skill in full before acting on it', text)
+                self.assertIn('name each skill that changed a decision', text)
+
     def test_manifest_includes_pins(self):
         files = json.loads((ASSETS / 'manifest.json').read_text())['files']
         for name in STAGES.values():
             self.assertIn(f'.tink/skillsets/{name}.json', files)
-        self.assertEqual(json.loads((ASSETS / 'manifest.json').read_text())['version'], '1.12.0')
+        self.assertEqual(json.loads((ASSETS / 'manifest.json').read_text())['version'], '1.13.0')
 
     def test_no_gitignore_hides_pins(self):
         self.assertFalse(list(ASSETS.rglob('.gitignore')))
