@@ -8,11 +8,10 @@
     "principle-boundary-discipline",
     "principle-minimize-reader-load",
     "principle-outcome-oriented-execution",
+    "principle-prove-it-works",
     "technical-writing"
   ],
   "required": [
-    "principle-boundary-discipline",
-    "principle-minimize-reader-load",
-    "principle-outcome-oriented-execution"
+    "principle-prove-it-works"
   ]
 }

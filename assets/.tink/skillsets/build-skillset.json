@@ -17,9 +17,6 @@
   ],
   "required": [
     "principle-build-the-lever",
-    "principle-laziness-protocol",
-    "principle-sequence-verifiable-units",
-    "principle-subtract-before-you-add",
-    "principle-type-system-discipline"
+    "unslop"
   ]
 }

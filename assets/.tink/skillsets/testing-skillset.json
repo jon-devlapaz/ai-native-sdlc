@@ -8,12 +8,12 @@
     "create-verification-skill",
     "maintain-verification-skill",
     "principle-attack-the-premise",
+    "principle-build-the-lever",
     "principle-prove-it-works",
     "principle-test-behavior-not-implementation"
   ],
   "required": [
-    "principle-attack-the-premise",
-    "principle-prove-it-works",
-    "principle-test-behavior-not-implementation"
+    "principle-build-the-lever",
+    "principle-prove-it-works"
   ]
 }
