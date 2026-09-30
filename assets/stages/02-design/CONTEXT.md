@@ -25,3 +25,9 @@ Skillset: `design-skillset` (pin: `.tink/skillsets/design-skillset.json`).
   (asks this stage's shelf, the skillset named in the rules block above; prints the skill on stdout.
   Exit 1 means nothing on the shelf fits, and a `Hint:` line may name a skill on another stage's shelf that
   was not delivered; exit 1 or 2 means continue without a skill).
+
+Stage skills (always for this stage; `tink use` compiles the same set):
+- `principle-build-the-lever`: Non-trivial work: build the script or tool that does or proves it, so a reviewer can rerun it, instead of doing it by hand.
+- `architect`: Before code crosses a function boundary: sketch types, signatures and module structure first, then stay in the loop as the implementation fills in.
+- `principle-foundational-thinking`: Before writing logic: choose the core types and data structures, and what concurrent actors share.
+When one of these triggers fires, or the stage-open pick (`runs/<slug>/skills/stage-<n>-pick.json`) names a skill, read that skill in full before acting on it. In the handoff note, name each skill that changed a decision and the decision it changed.

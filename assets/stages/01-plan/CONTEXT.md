@@ -28,3 +28,7 @@ Skillset: `planning-skillset` (pin: `.tink/skillsets/planning-skillset.json`).
   (asks this stage's shelf, the skillset named in the rules block above; prints the skill on stdout.
   Exit 1 means nothing on the shelf fits, and a `Hint:` line may name a skill on another stage's shelf that
   was not delivered; exit 1 or 2 means continue without a skill).
+
+Stage skills (always for this stage; `tink use` compiles the same set):
+- `principle-build-the-lever`: Non-trivial work: build the script or tool that does or proves it, so a reviewer can rerun it, instead of doing it by hand.
+When one of these triggers fires, or the stage-open pick (`runs/<slug>/skills/stage-<n>-pick.json`) names a skill, read that skill in full before acting on it. In the handoff note, name each skill that changed a decision and the decision it changed.
