@@ -1009,6 +1009,72 @@ def tink_route_warning():
             'upgrade: pipx install --force git+https://github.com/jon-devlapaz/tink-route.git')
 
 
+PICK_LIMIT = 120000
+PICK_TIMEOUT = 120
+
+
+def stage_pick_document(path, n):
+    """The stage's input document: the confirmed pre-intent, intent, spec/brief, or review findings; None when absent."""
+    metadata = require_run(path)
+    if n == 1:
+        bound = metadata.get('pre_intent')
+        if not bound:
+            return None
+        found = Path(bound['path'])
+        return found if found.is_absolute() else ROOT / found
+    relative = {2: '01-plan/output/intent.md', 6: '05-deploy/output/REVIEW-findings.md',
+                3: 'brief.md' if metadata['profile'] == 'light' else '02-design/output/spec.md'}
+    relative[5] = relative[3]
+    found = path / relative[n] if n in relative else None
+    return found if found is not None and found.is_file() else None
+
+
+def stage_pick(path, run, n, check):
+    """Route the whole input document once at stage open. Returns (line to print or None, launch-prompt sentence or None).
+
+    Never blocks the stage: every failure is a printed skip and a receipt under runs/<run>/skills/."""
+    document, route = stage_pick_document(path, n), shutil.which('tink-route')
+    if document is None or not route:
+        return None, None
+    try:
+        shown = str(document.relative_to(ROOT))
+    except ValueError:
+        shown = str(document)
+    if check:
+        return f'Would pick a skill from {shown}', None
+    raw = document.read_bytes()
+    text = raw.decode('utf-8', errors='replace')
+    receipt = {'stage': n, 'document': shown, 'sha256': digest(raw), 'chars': len(text)}
+    line = sentence = None
+    if len(text) > PICK_LIMIT:
+        receipt['status'] = 'skipped'
+        line = f'skill pick: skipped (document is {len(text)} characters; limit {PICK_LIMIT})'
+    else:
+        try:
+            done = subprocess.run([route, '--pick', '--json', '--anywhere', text], capture_output=True, text=True, timeout=PICK_TIMEOUT)
+            code, out = done.returncode, done.stdout
+        except (subprocess.TimeoutExpired, OSError) as error:
+            code, out = -1, str(error)
+        try:
+            picked = json.loads(out)
+        except ValueError:
+            picked = {}
+        if code == 0 and picked.get('status') == 'routed' and picked.get('winner'):
+            receipt.update(status='routed', winner=picked['winner'], confidence=picked.get('confidence'))
+            sentence = (f" Stage-open skill pick: {picked['winner']} (confidence {picked.get('confidence')}); "
+                        f"read it before relying on it: tink mount {picked['winner']} --payload.")
+        elif code == 1:
+            receipt['status'] = 'none'
+            line = 'skill pick: no specialist skill applies'
+        else:
+            receipt['status'] = 'error'
+            line = ('skill pick: skipped (router exited ' + str(code) + ')' if code > 0 else
+                    'skill pick: skipped (router output unreadable)' if code == 0 else 'skill pick: skipped (router did not complete)')
+    with locked(path / '.writer-lock'):
+        write_json(path / 'skills' / f'stage-{n}-pick.json', receipt)
+    return line, sentence
+
+
 def stage(args):
     run, n = args.run, args.n
     path = run_path(run)
@@ -1052,6 +1118,7 @@ def stage(args):
     if pre_intent and not args.check:
         with locked(path / '.writer-lock'):
             write_json(path / 'run.json', {**read_json(path / 'run.json'), 'pre_intent': {'path': pre_intent, 'sha256': pre_intent_digest}})
+    pick_line, pick_sentence = stage_pick(path, run, n, args.check)
     pending = bool(run_git(ROOT, 'status', '--porcelain', '--', f'runs/{run}').stdout.strip()) if make_worktree else False
     if pending and not stage_identity_ok():
         raise ValueError('no committer identity configured; set user.name and user.email (or GIT_COMMITTER_*) so the launcher can commit '
@@ -1064,10 +1131,13 @@ def stage(args):
     prompt = f'Begin stage {n} ({STAGE_WORDS[n]}) of SDLC run `{run}`.'
     if pre_intent:
         prompt += f' The operator-confirmed pre-intent is at {pre_intent}; it is input, not authorization.'
+    prompt += pick_sentence or ''
     warn = stage_dirty(run) if make_worktree else []
     warning = ('warning: not carried into the new checkout: ' + ', '.join(warn[:5]) + (f' (+{len(warn) - 5} more)' if len(warn) > 5 else '')
                if warn else None)
 
+    if args.check and pick_line:
+        print(pick_line)
     if args.check:
         print(f'Would commit: {"yes" if pending else "no"}')
         how = f'branch {run}' if not detached else 'detached'
@@ -1118,6 +1188,8 @@ def stage(args):
         print(notice)
     if warning:
         print(warning)
+    if pick_line and not args.check:
+        print(pick_line)
     if not args.check and (stale_route := tink_route_warning()):
         print(stale_route)
     print(f'Checkout: {target}')
