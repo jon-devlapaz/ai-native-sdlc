@@ -855,10 +855,179 @@ def walk(args):
         raise SystemExit(1)
 
 
+# --- stage launcher ----------------------------------------------------------
+# Run by the human (or a script), never by the agent: commit the approved artifacts,
+# create the checkout, compile the stage rules there, and print the launch prompt.
+STAGE_DIRS = {1: '01-plan', 2: '02-design', 3: '03-build', 4: '04-test', 5: '05-deploy', 6: '06-maintain'}
+STAGE_WORDS = {1: 'plan', 2: 'design', 3: 'build', 4: 'test', 5: 'deploy', 6: 'maintain'}
+TINK_TIMEOUT = 60
+
+
+def run_git(cwd, *args):
+    return subprocess.run(['git', '-C', str(cwd), *args], capture_output=True, text=True)
+
+
+def git_line(result):
+    lines = [line for line in (result.stderr + result.stdout).splitlines() if line.strip()]
+    return lines[0] if lines else f'git exited {result.returncode}'
+
+
+def stage_skillset(n):
+    """Skillset named by the stage contract's Skills section, or None."""
+    text = read_text_safe(ROOT / 'stages' / STAGE_DIRS[n] / 'CONTEXT.md')
+    match = re.search(r'^## Skills\b(.*?)(?=^## |\Z)', text or '', re.M | re.S)
+    named = re.search(r'Skillset:\s*`([a-z0-9]+-skillset)`', match.group(1)) if match else None
+    return named.group(1) if named else None
+
+
+def stage_entry_gates(path, run, n):
+    profile = require_run(path)['profile']
+    if n == 2 and profile == 'light':
+        raise ValueError('light runs define in stage 1; the single definition gate is recorded as stage 3')
+    needed = {1: [], 2: [1], 3: [3] if profile == 'light' else [1, 2]}.get(n) if n <= 3 else stages(path)
+    for stage in needed:
+        state = gate(path, stage)
+        if state != 'approved':
+            raise ValueError(f'cannot open stage {n}: the stage {stage} approval is {state}; record it with: '
+                             f'sdlc.py decide {run} {stage} approved --reviewer NAME --source REF --reason TEXT')
+    if n == 5:
+        record_path = path / '04-test/output/verification.json'
+        current = False
+        try:
+            record = read_json(record_path)
+            current = (record.get('result') == 'passed' and evidence_matches(record, evidence_inputs(path))
+                       and record['log'] == digest((record_path.parent / 'test-log.md').read_bytes()))
+        except (ValueError, OSError, KeyError, TypeError, subprocess.SubprocessError):
+            pass
+        if not current:
+            raise ValueError('run verify first: stage 5 reviews current evidence '
+                             f'(_system/scripts/verify.sh {run})')
+
+
+def stage_identity_ok():
+    for who in ('COMMITTER', 'AUTHOR'):
+        name = os.environ.get(f'GIT_{who}_NAME') or run_git(ROOT, 'config', 'user.name').stdout.strip()
+        email = os.environ.get(f'GIT_{who}_EMAIL') or run_git(ROOT, 'config', 'user.email').stdout.strip()
+        if not (name and email):
+            return False
+    return True
+
+
+def stage_pre_intent(value):
+    target = Path(value)
+    if not target.exists() and not target.is_absolute():
+        raise ValueError(f'pre-intent file not found: {value}')
+    resolved = target.resolve()
+    if not resolved.is_file():
+        raise ValueError(f'pre-intent must be an existing regular file: {value}')
+    try:
+        return str(resolved.relative_to(ROOT))
+    except ValueError:
+        return str(resolved)
+
+
+def stage_dirty(run):
+    result = run_git(ROOT, 'status', '--porcelain', '--untracked-files=all')
+    paths = [line[3:].split(' -> ')[-1].strip('"') for line in result.stdout.splitlines() if line[3:]]
+    return [p for p in paths if not p.startswith(f'runs/{run}/') and p not in (f'runs/{run}', f'runs/.{run}.lock')]
+
+
+def stage(args):
+    run, n = args.run, args.n
+    path = run_path(run)
+    require_run(path)
+    if n == 4:
+        raise ValueError('stage 4 runs inside the stage-3 session (see stages/04-test/CONTEXT.md)')
+    if n not in STAGE_DIRS:
+        raise ValueError('stage must be one of 1, 2, 3, 5, 6')
+    if args.worktree and args.here:
+        raise ValueError('--worktree and --here are mutually exclusive')  # parser already rejects; defensive
+    if args.pre_intent and n != 1:
+        raise ValueError('--pre-intent applies to stage 1 only')
+    top = run_git(ROOT, 'rev-parse', '--show-toplevel')
+    if top.returncode or Path(top.stdout.strip()).resolve() != ROOT:
+        raise ValueError('the scaffold must sit at the root of a git repository')
+    stage_entry_gates(path, run, n)
+    pre_intent = stage_pre_intent(args.pre_intent) if args.pre_intent else None
+    skillset = stage_skillset(n)
+    stage_dir = STAGE_DIRS[n]
+
+    make_worktree = not args.here and (args.worktree or n in (3, 5))
+    target = ROOT
+    detached = n != 3
+    if make_worktree:
+        target = Path(os.path.abspath(args.worktree)) if args.worktree else (
+            ROOT.parent / (f'{ROOT.name}-review-{run}' if n == 5 else f'{ROOT.name}-{run}'))
+        if target.exists() or target.is_symlink():
+            raise ValueError(f'worktree path already exists: {target} (remove it with: git worktree remove {target})')
+        if not detached and run_git(ROOT, 'show-ref', '--verify', '--quiet', f'refs/heads/{run}').returncode == 0:
+            raise ValueError(f"branch '{run}' already exists (remove it with: git branch -D {run}, after git worktree remove on any checkout using it)")
+    pending = bool(run_git(ROOT, 'status', '--porcelain', '--', f'runs/{run}').stdout.strip()) if make_worktree else False
+    if pending and not stage_identity_ok():
+        raise ValueError('no committer identity configured; set user.name and user.email (or GIT_COMMITTER_*) so the launcher can commit '
+                         f'runs/{run}')
+    tink = shutil.which('tink') if skillset else None
+    notice = None if skillset else f'skills: skipped (stages/{stage_dir}/CONTEXT.md names no skillset)'
+    if skillset and not tink:
+        notice = 'skills: skipped (tink not installed); the agent will run without stage disciplines'
+    snapshot_arg = f'runs/{run}/{stage_dir}'
+    prompt = f'Begin stage {n} ({STAGE_WORDS[n]}) of SDLC run `{run}`.'
+    if pre_intent:
+        prompt += f' The operator-confirmed pre-intent is at {pre_intent}; it is input, not authorization.'
+    warn = stage_dirty(run) if make_worktree else []
+    warning = ('warning: not carried into the new checkout: ' + ', '.join(warn[:5]) + (f' (+{len(warn) - 5} more)' if len(warn) > 5 else '')
+               if warn else None)
+
+    if args.check:
+        print(f'Would commit: {"yes" if pending else "no"}')
+        how = f'branch {run}' if not detached else 'detached'
+        print(f'Would create worktree: {target} ({how})' if make_worktree else 'Would create worktree: none')
+    else:
+        committed = None
+        if pending:
+            message = f'stage {n} open: {run} (approved artifacts and receipts)'
+            added = run_git(ROOT, 'add', '-A', '--', f'runs/{run}')
+            if added.returncode:
+                raise ValueError(f'git add failed: {git_line(added)}')
+            done = run_git(ROOT, 'commit', '-q', '-m', message, '--', f'runs/{run}')
+            if done.returncode:
+                raise ValueError(f'git commit failed: {git_line(done)}')
+            committed = (run_git(ROOT, 'rev-parse', '--short', 'HEAD').stdout.strip(), message)
+        if make_worktree:
+            command = ['worktree', 'add', '--detach', str(target), 'HEAD'] if detached else ['worktree', 'add', '-b', run, str(target), 'HEAD']
+            created = run_git(ROOT, *command)
+            if created.returncode:
+                raise ValueError(f'worktree creation failed: {git_line(created)}'
+                                 + (f'\nalready committed {committed[0]}: {committed[1]}' if committed else ''))
+    if args.check:
+        print(f'Would run: tink use {skillset} --snapshot {snapshot_arg}' if tink else notice)
+    elif tink:
+        try:
+            used = subprocess.run([tink, 'use', skillset, '--snapshot', snapshot_arg], cwd=target, capture_output=True,
+                                  text=True, timeout=TINK_TIMEOUT)
+            failure = None if used.returncode == 0 else next((l for l in used.stderr.splitlines() if l.strip()), f'tink use exited {used.returncode}')
+        except (subprocess.TimeoutExpired, OSError) as error:
+            failure = f'tink use did not complete: {error}'
+        if failure:
+            print(failure, file=sys.stderr)
+            print('stage not opened: fix the skillset problem above', file=sys.stderr)
+            if make_worktree:
+                print(f'worktree left at {target}', file=sys.stderr)
+            raise SystemExit(1)
+        print(f'skills: compiled {skillset} into {target}')
+    else:
+        print(notice)
+    if warning:
+        print(warning)
+    print(f'Checkout: {target}')
+    print('Launch prompt (start a NEW session there):')
+    print(prompt)
+
+
 class ShortErrorParser(argparse.ArgumentParser):
     def error(self, message):
         self.exit(2, f'sdlc.py: error: {message}\n'
-                     'Commands: new, status, decide, verify, mark, lock-tests, skills, walk. See _system/SDLC.md.\n')
+                     'Commands: new, status, decide, verify, mark, lock-tests, skills, stage, walk. See _system/SDLC.md.\n')
 
 
 def main():
@@ -891,11 +1060,19 @@ def main():
     skill = commands.add_parser('skills')
     skill.add_argument('tool', choices=list(TOOL_ACCEPTABLE_CODES))
     skill.add_argument('arguments', nargs=argparse.REMAINDER)
+    launch = commands.add_parser('stage', help='open a stage: commit, checkout, compile rules, print the launch prompt')
+    launch.add_argument('run')
+    launch.add_argument('n', type=int)
+    where = launch.add_mutually_exclusive_group()
+    where.add_argument('--worktree', metavar='PATH')
+    where.add_argument('--here', action='store_true')
+    launch.add_argument('--pre-intent', metavar='PATH')
+    launch.add_argument('--check', action='store_true', help='validate and print the plan; write nothing')
     lint = commands.add_parser('walk', help='structural walk lint (read-only)')
     lint.add_argument('--json', action='store_true')
     args = parser.parse_args()
     try:
-        {'new': create, 'status': status, 'decide': decide, 'verify': verify, 'mark': mark, 'lock-tests': lock_tests, 'skills': skills, 'walk': walk}[args.command](args)
+        {'new': create, 'status': status, 'decide': decide, 'verify': verify, 'mark': mark, 'lock-tests': lock_tests, 'skills': skills, 'stage': stage, 'walk': walk}[args.command](args)
     except (ValueError, OSError, KeyError, subprocess.SubprocessError) as error:
         print(f'Error: {describe(error)}', file=sys.stderr)
         return 1

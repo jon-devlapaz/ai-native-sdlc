@@ -23,6 +23,7 @@ Skillset: `build-skillset` (pin: `.tink/skillsets/build-skillset.json`).
   `tink library fetch .tink/skillsets/build-skillset.json`
 - At stage open, compile the required disciplines, then start a NEW session so
   `AGENTS.md` is re-read: `tink use build-skillset --snapshot runs/<slug>/03-build`
+  The launcher does this for you: `python3 _system/scripts/sdlc.py stage <slug> 3`.
 - For a capability gap: `tink-route --receipt runs/<slug>/skills.jsonl "<what you need>"`
   (asks this stage's shelf, the skillset named in the rules block above; prints the skill on stdout.
   Exit 1 means nothing on the shelf fits, and a `Hint:` line may name a skill on another stage's shelf that

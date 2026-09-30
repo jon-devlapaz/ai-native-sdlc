@@ -22,6 +22,7 @@ Skillset: `deployment-skillset` (pin: `.tink/skillsets/deployment-skillset.json`
   `tink library fetch .tink/skillsets/deployment-skillset.json`
 - At stage open, compile the required disciplines, then start a NEW session so
   `AGENTS.md` is re-read: `tink use deployment-skillset --snapshot runs/<slug>/05-deploy`
+  The launcher does this for you: `python3 _system/scripts/sdlc.py stage <slug> 5`.
 - For a capability gap: `tink-route --receipt runs/<slug>/skills.jsonl "<what you need>"`
   (asks this stage's shelf, the skillset named in the rules block above; prints the skill on stdout.
   Exit 1 means nothing on the shelf fits, and a `Hint:` line may name a skill on another stage's shelf that
