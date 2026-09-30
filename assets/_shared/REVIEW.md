@@ -1,7 +1,7 @@
 # Code review policy
 
-Parse logic and edge cases, security boundaries, and acceptance criteria for every
-change. A single parse may cover these areas for routine work. Use separate focused
+Review logic and edge cases, security boundaries, and acceptance criteria for every
+change. A single review may cover these areas for routine work. Use separate focused
 passes for consequential changes when justified by risk; record that choice and any
 remaining uncertainty in the review findings.
 
@@ -13,5 +13,5 @@ Important findings and refresh verification after implementation changes.
   unhandled exceptions; block release review completion until resolved.
 - **Nit:** optional readability or style suggestions; report at most five.
 
-Automated parse is advisory. Independent code-owner approval and current required
+Automated review is advisory. Independent code-owner approval and current required
 CI results are enforced by the project's forge; local files do not authenticate them.

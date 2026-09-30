@@ -56,5 +56,5 @@ python3 -m unittest discover -s tests -p 'test_sdlc_*.py' -v
 ```
 
 The manifest records payload content hashes, not publisher authenticity. Tests use
-isolated temporary repositories and synthetic parse fixtures, never real approvals.
+isolated temporary repositories and synthetic review fixtures, never real approvals.
 The package intentionally has one runtime implementation; tests execute that payload.

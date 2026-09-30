@@ -1,15 +1,15 @@
-# Stage 05: Parse and release
+# Stage 05: Review and release
 
 Inputs: current stage 04 evidence, candidate diff, approved brief or spec/plan,
 and `_shared/REVIEW.md`.
 Output: `runs/<slug>/05-deploy/output/REVIEW-findings.md` and a PR when requested.
 
 Check logic, security boundaries, and acceptance criteria. Use separate review
-passes for risk that warrants them; a model parse is not human approval.
+passes for risk that warrants them; a model review is not human approval.
 Important findings return to stage 03 and require renewed verification.
 
 Gate: independently authenticated code-owner approval and current required CI in
-the forge. Local parse files cannot approve a release. Consult the deployment
+the forge. Local review files cannot approve a release. Consult the deployment
 system for the deployed revision, health result, and rollback reference.
 
 Skill mounts land in the git-ignored `.active` directory inside `.tink` (created on first mount, not shipped); nothing to clean up at run closure.

@@ -47,7 +47,7 @@ A preexisting log is never passing evidence. Failed or interrupted verification 
 
 ## Bug reproduction baseline
 
-Before fixing a bug, demonstrate that a meaningful reproduction fails for the expected reason on the unfixed code, and have an independent reviewer accept it. Then record the actual failure and parse references:
+Before fixing a bug, demonstrate that a meaningful reproduction fails for the expected reason on the unfixed code, and have an independent reviewer accept it. Then record the actual failure and review references:
 
 ```sh
 python3 _system/scripts/sdlc.py lock-tests fix-example tests/test_regression.py \
