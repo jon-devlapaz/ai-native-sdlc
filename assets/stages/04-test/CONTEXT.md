@@ -27,9 +27,8 @@ Skillset: `testing-skillset` (pin: `.tink/skillsets/testing-skillset.json`).
   `AGENTS.md` is re-read: `tink use testing-skillset --snapshot runs/<slug>/04-test`
   The launcher does this for you: `python3 _system/scripts/sdlc.py stage <slug> 4`.
 - For a capability gap: `tink-route --receipt runs/<slug>/skills.jsonl "<what you need>"`
-  (asks this stage's shelf, the skillset named in the rules block above; prints the skill on stdout.
-  Exit 1 means nothing on the shelf fits, and a `Hint:` line may name a skill on another stage's shelf that
-  was not delivered; exit 1 or 2 means continue without a skill).
+  (searches the whole library; prints the skill on stdout. Exit 1 means nothing fits; exit 1 or 2 means
+  continue without a skill).
 
 Stage skills (always for this stage; `tink use` compiles the same set):
 - `principle-prove-it-works`: Before declaring done: run the real artifact and show its output; a green build or "it compiles" is not proof.

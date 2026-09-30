@@ -86,7 +86,7 @@ class StagePinTests(unittest.TestCase):
         files = json.loads((ASSETS / 'manifest.json').read_text())['files']
         for name in STAGES.values():
             self.assertIn(f'.tink/skillsets/{name}.json', files)
-        self.assertEqual(json.loads((ASSETS / 'manifest.json').read_text())['version'], '1.13.0')
+        self.assertEqual(json.loads((ASSETS / 'manifest.json').read_text())['version'], '1.14.0')
 
     def test_no_gitignore_hides_pins(self):
         self.assertFalse(list(ASSETS.rglob('.gitignore')))
@@ -137,8 +137,9 @@ class StagePinTests(unittest.TestCase):
                 self.assertRegex(text, rf'tink use {name} --snapshot runs/<slug>/{stage}\b')
                 self.assertIn('NEW session', text)
                 self.assertIn('tink-route --receipt runs/<slug>/skills.jsonl "<what you need>"', text)
-                self.assertNotIn('tink-route --skillset', text)  # the phase decides the shelf
-                self.assertIn("this stage's shelf", text)
+                self.assertNotIn('tink-route --skillset', text)
+                self.assertIn('searches the whole library', text)
+                self.assertNotIn('rules block above', text)
 
     def test_no_removed_route_flow_in_shipped_files(self):
         banned = ['--install', '--ephemeral', '--prune', 'tink-route --use', '--stage-only', '--strict', 'ephemeral.json']

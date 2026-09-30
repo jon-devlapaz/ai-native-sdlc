@@ -1,5 +1,5 @@
 {
-  "version": "1.13.0",
+  "version": "1.14.0",
   "files": {
     ".tink/skillsets/build-skillset.json": "8e4b6397b31e9d830a7baa6d887891505d1b3354a3482ef2c9a876dbdb291445",
     ".tink/skillsets/deployment-skillset.json": "9a89b7593f86f593afe3d81878d97b14ee0143d734eeb4fd0adca6ef8f7a6732",
@@ -12,18 +12,18 @@
     "_shared/intent-template.md": "93eebf7467c4a1e76b02e1da8629d28be4218c199739c88f51e58914a8d5d403",
     "_shared/plan-template.md": "fe93363211dcc70b73843b0fa7827f8f9ca7b26e185db7a6b6e9d2adf5a42c00",
     "_shared/spec-template.md": "d26109e578014743268696a97d0f83932b48be8b17a9a04bf6ec822b498caa28",
-    "_system/SDLC.md": "60eec022211bfe665649b1e11801db7f69a9b41ab8a378e91867e85c49e5fe02",
+    "_system/SDLC.md": "0fedc9e8122ffbbe99752aae8140256c2fe538e4c3b572c5338f06b815f1936d",
     "_system/scripts/new-run.sh": "5cefd13d71d3ad1f4dfdceb8ed85c2ac6f07ff4798f722df91c4d705305a260b",
-    "_system/scripts/sdlc.py": "3cec46e6833cf970bd44806a465123243dc240d85f57b61a1d541a0027e08568",
+    "_system/scripts/sdlc.py": "32a52f99e8acadcb34ab10566480de4cedcddba0d63e7e170a2f412eff4b5d24",
     "_system/scripts/status.sh": "220b50bfca4d1dd6fcf786a9c834b295a3a8740efa8074a0846c8ad12a1a3c31",
     "_system/scripts/verify.sh": "ef2e22f7fd5a30ee4cbe54cc9eb4b08a093e5603a02f9bbf2b35d7784c10cc02",
     "_system/verification.json": "1308d67c7c43c1a8f5c90cde99a69e217a7fa7c553cece572ecf3228b50fa937",
-    "stages/01-plan/CONTEXT.md": "e20ec7a2377ab0dd6dd04861150c51c7d250b0aec7bd5dae63f6c17667e83dc0",
-    "stages/02-design/CONTEXT.md": "3e264c878049bce9f2ab27829ccb0450695aebf2bf818ae07af4b769cc33fa04",
-    "stages/03-build/CONTEXT.md": "368c9627d1e046cbf3a9398de1e9bcadd205ec98622df2f46bfdda073e0b9852",
-    "stages/04-test/CONTEXT.md": "3a7319f5e45f8b7cfc961eec5a75a7fc9fb66b8476e65f0fd5cc9dcadd50bd5c",
-    "stages/05-deploy/CONTEXT.md": "2ec4c1989a3d59d8cd956819cddad57e72a6e7cf9c022b783bd9d772487d403d",
-    "stages/06-maintain/CONTEXT.md": "307a98298773991dc8cc07df3418d210674a4e0afcb705058a866f9ae1eeabfd"
+    "stages/01-plan/CONTEXT.md": "609027170a21b8c82aee85825b9d0d54535963134f46e8399f274e4760358a68",
+    "stages/02-design/CONTEXT.md": "2a0eefa72007d874755d8754d25c1310db6389b3fd5a6834b2def58219a4e989",
+    "stages/03-build/CONTEXT.md": "b802b5565dc75fb3186a63d0a8f4be15d0f1ca2eab199471b538d7e768290ca0",
+    "stages/04-test/CONTEXT.md": "46d56741ac08a97cc63da0ca1410f2a948adca888319f5aac050f7ade78f89a6",
+    "stages/05-deploy/CONTEXT.md": "b8b06b1e3ad1aaae545aaf89a3336338f66d4147be9cb8d46e89d7a93564ea46",
+    "stages/06-maintain/CONTEXT.md": "c25274c308b55ba48d9624f274621fb67adaec3ed2f4dfa38f54ea8b5278773d"
   },
   "projectOwned": [
     ".tink/skillsets/build-skillset.json",

@@ -990,11 +990,11 @@ def candidate_dirty(run):
     return dirty
 
 
-MIN_TINK_ROUTE = (0, 9, 0)
+MIN_TINK_ROUTE = (0, 10, 0)
 
 
 def tink_route_warning():
-    """One warning line when an installed tink-route predates the stage shelf, else None."""
+    """One warning line when an installed tink-route predates whole-library routing, else None."""
     route = shutil.which('tink-route')
     if not route:
         return None
@@ -1005,7 +1005,7 @@ def tink_route_warning():
     match = re.search(r'(\d+)\.(\d+)\.(\d+)', out)
     if not match or tuple(int(g) for g in match.groups()) >= MIN_TINK_ROUTE:
         return None
-    return (f'warning: tink-route {match.group(0)} is older than {".".join(map(str, MIN_TINK_ROUTE))} and ignores the stage shelf; '
+    return (f'warning: tink-route {match.group(0)} is older than {".".join(map(str, MIN_TINK_ROUTE))} and scopes routing to the stage shelf; '
             'upgrade: pipx install --force git+https://github.com/jon-devlapaz/tink-route.git')
 
 
