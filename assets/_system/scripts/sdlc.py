@@ -375,7 +375,7 @@ def decide(args):
                 source = source if source.is_absolute() else ROOT / source
                 if not source.is_file() or digest(source.read_bytes()) != bound['sha256']:
                     raise ValueError(f"The seed contract {bound['path']} changed or is missing since stage 1 was opened; "
-                                     f'confirm it again, then run: sdlc.py stage {args.run} 1 --seed-contract {bound["path"]}')
+                                     f'confirm it again, then run: sdlc.py stage {args.run} 1 --seed-contract {bound.get("source", bound["path"])}')
         if args.decision == 'approved' and args.stage == 3 and load_checklist(path) == []:
             raise ValueError(f'Define at least one checklist item before approval. Edit runs/{args.run}/checklist.json '
                              '(each item needs id, description, verify; optional check).')
@@ -939,21 +939,18 @@ def stage_identity_ok():
 
 
 def stage_seed_contract(value):
-    """Return (path as shown in the prompt, sha256) of the operator's confirmed Seed Me seed contract.
+    """Return (resolved path, bytes) of the operator's confirmed Seed Me seed contract.
 
-    Whether the file is really confirmed is the operator's call: nothing here can tell. What is enforced is
-    the binding: its digest is recorded in run.json and hashed into approvals and verification."""
+    Whether the file is really confirmed is the operator's call: nothing here can tell. What is enforced is the
+    binding: the run keeps its own copy (runs/<run>/seed-contract.md); that copy's digest is recorded in run.json
+    and hashed into approvals and verification."""
     target = Path(value)
     if not target.exists() and not target.is_absolute():
         raise ValueError(f'seed contract file not found: {value}')
     resolved = target.resolve()
     if not resolved.is_file():
         raise ValueError(f'seed contract must be an existing regular file: {value}')
-    try:
-        shown = str(resolved.relative_to(ROOT))
-    except ValueError:
-        shown = str(resolved)
-    return shown, digest(resolved.read_bytes())
+    return resolved, resolved.read_bytes()
 
 
 def stage_dirty(run):
@@ -1095,7 +1092,8 @@ def stage(args):
             raise ValueError('stage 5 reviews a commit, and these candidate changes are uncommitted: ' + ', '.join(dirty[:5])
                              + (f' (+{len(dirty) - 5} more)' if len(dirty) > 5 else '')
                              + '; commit the candidate changes (verify again only if the code changed since it passed)')
-    seed_contract, seed_contract_digest = stage_seed_contract(args.seed_contract) if args.seed_contract else (None, None)
+    seed_source, seed_bytes = stage_seed_contract(args.seed_contract) if args.seed_contract else (None, None)
+    seed_contract = f'runs/{run}/seed-contract.md' if seed_source else None
     skillset = stage_skillset(n)
     stage_dir = STAGE_DIRS[n]
 
@@ -1115,7 +1113,13 @@ def stage(args):
             raise ValueError(f"branch '{run}' already exists (remove it with: git branch -D {run}, after git worktree remove on any checkout using it)")
     if seed_contract and not args.check:
         with locked(path / '.writer-lock'):
-            write_json(path / 'run.json', {**read_json(path / 'run.json'), 'seed_contract': {'path': seed_contract, 'sha256': seed_contract_digest}})
+            copy = ROOT / seed_contract
+            previous = read_json(path / 'run.json').get('seed_contract', {})
+            if seed_source != copy.resolve():
+                copy.write_bytes(seed_bytes)
+            source = previous.get('source', str(seed_source)) if seed_source == copy.resolve() else str(seed_source)
+            write_json(path / 'run.json', {**read_json(path / 'run.json'),
+                                            'seed_contract': {'path': seed_contract, 'sha256': digest(seed_bytes), 'source': source}})
     pick_line, pick_sentence = stage_pick(path, run, n, args.check)
     pending = bool(run_git(ROOT, 'status', '--porcelain', '--', f'runs/{run}').stdout.strip()) if make_worktree else False
     if pending and not stage_identity_ok():
@@ -1137,6 +1141,8 @@ def stage(args):
     if args.check and pick_line:
         print(pick_line)
     if args.check:
+        if seed_contract and seed_source != (ROOT / seed_contract).resolve():
+            print(f'Would copy {seed_source} to {seed_contract}')
         print(f'Would commit: {"yes" if pending else "no"}')
         how = f'branch {run}' if not detached else 'detached'
         print(f'Would create worktree: {target} ({how})' if make_worktree else 'Would create worktree: none')
