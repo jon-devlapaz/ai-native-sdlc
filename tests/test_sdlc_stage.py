@@ -253,6 +253,24 @@ class HereMode(StageBase):
         target.write_text('seed contract — confirmed for intake\nchanged scope\n')
         self.assertNotIn('Stage 3: approved', self.sdlc('status', 'r').stdout)
 
+    def test_decide_refuses_a_pre_intent_that_no_longer_matches_the_record(self):
+        self.new_run('r', approve=False)
+        target = self.base / 'contract.md'
+        target.write_text(CONFIRMED)
+        self.stage('r', 1, '--pre-intent', str(target))
+        for change in ('overwrite', 'delete'):
+            with self.subTest(change=change):
+                if change == 'overwrite':
+                    target.write_text(CONFIRMED + 'new scope\n')
+                else:
+                    target.unlink()
+                result = self.sdlc('decide', 'r', '3', 'approved', '--reviewer', 'h', '--source', 's', '--reason', 'r')
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('pre-intent', result.stderr)
+                self.assertEqual(list((self.root / 'runs/r/decisions').glob('*.json')), [])
+        target.write_text(CONFIRMED)
+        self.decide('r', 3)
+
     def test_worktree_launch_carries_the_pre_intent_binding(self):
         self.new_run('r', approve=False)
         self.commit_run()
@@ -262,6 +280,12 @@ class HereMode(StageBase):
         bound = json.loads((self.base / 'wt1/runs/r/run.json').read_text())
         self.assertEqual(bound['pre_intent']['path'], str(target))
         self.assertEqual(self.git('status', '--porcelain', '--', 'runs/r').stdout.strip(), '')
+
+    def test_failed_compile_leaves_no_empty_parent_directories(self):
+        self.new_run('r')
+        deep = self.base / 'deep' / 'a' / 'wt'
+        self.stage('r', 3, '--worktree', str(deep), ok=False, env={**IDENT, 'TINK_FAIL': '1'})
+        self.assertFalse((self.base / 'deep').exists())
 
     def test_failed_worktree_creation_leaves_no_branch(self):
         self.new_run('r')
