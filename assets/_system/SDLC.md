@@ -7,8 +7,8 @@ A small filesystem workflow: define a change, implement and verify it in an isol
 Run scripts from any working directory. Paths resolve from the script location.
 
 ```sh
-_system/scripts/new-run.sh fix-example --kind bug
-_system/scripts/status.sh fix-example
+python3 _system/scripts/sdlc.py new fix-example --kind bug
+python3 _system/scripts/sdlc.py status fix-example
 ```
 
 The default `light` profile creates one `brief.md`: problem, acceptance criteria, approach, risks, and verification, plus `checklist.json` for the implementation checklist. Use `--profile full` for consequential architecture or policy changes; it creates the existing intent/spec/plan artifacts. A human selects the appropriate profile. Legacy artifacts without run metadata remain drafts; text approval tags are not imported as evidence.
@@ -38,7 +38,7 @@ Use a separate Git worktree or clone for each code-writing run, never just two b
 Configure `_system/verification.json` with nonempty command argument arrays and timeouts. Fresh installations have an empty check list and fail verification until real project tests, build, lint, and other required checks are configured. Missing commands, missing configuration, failed checks, and timeouts fail verification. Required Tink checks fail if Tink is unavailable. The tool does not infer test coverage from an exit code. A failed check's error ends with `(output: runs/<slug>/04-test/output/test-log.md)`, where the full output is logged.
 
 ```sh
-_system/scripts/verify.sh fix-example
+python3 _system/scripts/sdlc.py verify fix-example
 ```
 
 Verification writes the actual check output and a generated receipt under `04-test/output/`. The receipt binds the Git revision, tracked and nonignored untracked file contents/modes (excluding disposable untracked Python caches), artifact inputs, policy, test lock, and log digest. It excludes `runs/`; do not place application source or test infrastructure there. Ignored files and external services are outside this fingerprint: pin dependencies and environments in trusted CI. Generated `tink:rules` blocks in the root `AGENTS.md` are session context and are excluded from the candidate fingerprint (`sdlc.py walk` and `tink use --check` verify them); all other `AGENTS.md` text still counts. If the candidate changes while checks run, the error lists up to five changed paths and hints when tracked bytecode files are the cause. Commit code changes before final verification. The receipt records the observed commit for provenance; status compares candidate contents, so committing only run evidence does not invalidate unchanged code. CI must still verify the actual revision being merged. Avoid modifying the checkout while checks run.
@@ -70,9 +70,9 @@ This detects local changes, not adversarial tampering. Strict protection require
   current verification), and it fails closed when the skillset does not compile. Stage 4 runs inside the
   stage-3 session. Manual fallback: approve, commit `runs/<run>`, `git worktree add`, `tink use`, prompt.
 - The agent never creates the run, never runs `tink use`, and never approves. It reads
-  `AGENTS.md`, its stage `CONTEXT.md`, and `_system/scripts/status.sh <run>`.
+  `AGENTS.md`, its stage `CONTEXT.md`, and `python3 _system/scripts/sdlc.py status <run>`.
 - Build order in stages 3 and 4: implement, then `sdlc.py mark` the attested items (marks
-  need an approved gate), then `verify.sh`. Checked items are proven by `verify` and need no
+  need an approved gate), then `python3 _system/scripts/sdlc.py verify`. Checked items are proven by `verify` and need no
   mark. Commit before verifying, because the candidate fingerprint includes uncommitted files.
 - The reviewer works in a separate checkout, writes
   `runs/<slug>/05-deploy/output/REVIEW-findings.md`, and does not modify code or evidence.
@@ -123,7 +123,7 @@ Maintenance is optional intake, not a required completion stage. Enable it only 
 python3 _system/scripts/sdlc.py walk [--json]
 ```
 
-A read-only, deterministic check of the structural preconditions of the ICM walk test: an agent with no memory should orient, act, and report status from the files alone. No network, no model, and it writes nothing. It checks: W1 the `AGENTS.md` entry file (router markers present, at most 60 lines outside generated blocks); W2 backticked `_system/`, `_shared/`, `stages/`, `.tink/`, `.agents/` pointers in the router and stage contracts resolve (`runs/` paths are exempt); W3 each stage contract names Inputs, Output, and a human Gate; W4 estimated context tokens per stage (warn above 8000, fail above 16000); W5 every `*-skillset` name has a pin and every pin is named; W6 `status.sh` runs for every run; W7 the compiled `tink:rules` block is current (`tink use <name> --check`, skipped when `tink` is absent).
+A read-only, deterministic check of the structural preconditions of the ICM walk test: an agent with no memory should orient, act, and report status from the files alone. No network, no model, and it writes nothing. It checks: W1 the `AGENTS.md` entry file (router markers present, at most 60 lines outside generated blocks); W2 backticked `_system/`, `_shared/`, `stages/`, `.tink/`, `.agents/` pointers in the router and stage contracts resolve (`runs/` paths are exempt); W3 each stage contract names Inputs, Output, and a human Gate; W4 estimated context tokens per stage (warn above 8000, fail above 16000); W5 every `*-skillset` name has a pin and every pin is named; W6 `sdlc.py status` runs for every run; W7 the compiled `tink:rules` block is current (`tink use <name> --check`, skipped when `tink` is absent).
 
 This is structural. It cannot prove that a cold agent can actually orient; a real walk by a fresh agent stays the test. A `tink:rules` block written by `tink use` (delimited by `<!-- tink:rules begin ... -->` and `<!-- tink:rules end -->`) is allowed router payload up to 8192 bytes, a deliberate divergence from ICM's rule that the router holds no content; any other content in `AGENTS.md` is bounded by the 60-line rule. Exit 0 when nothing fails (warnings do not fail), 1 when a check fails, 2 for usage errors.
 

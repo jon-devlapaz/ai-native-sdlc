@@ -13,7 +13,7 @@ Output: `runs/<slug>/brief.md` and `runs/<slug>/checklist.json` (light runs), or
 `runs/<slug>/01-plan/output/intent.md` (full runs).
 
 Gate: actual human acceptance recorded with `sdlc.py decide`; text status tags
-are not approval evidence. Follow `_system/scripts/status.sh <slug>`.
+are not approval evidence. Follow `python3 _system/scripts/sdlc.py status <slug>`.
 See `_system/SDLC.md` for rejection, stale inputs, and authority boundaries.
 
 ## Skills

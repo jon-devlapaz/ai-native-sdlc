@@ -389,7 +389,7 @@ class WorktreeMode(StageBase):
         self.assertEqual(self.git('branch', '--show-current', cwd=worktree).stdout.strip(), 'r')
         self.assertEqual(self.git('rev-parse', 'r').stdout, self.git('rev-parse', 'HEAD').stdout)
         self.assertEqual(self.tink_calls(), [f'{worktree}|use build-skillset --snapshot runs/r/03-build'])
-        status = self.run_cmd(['_system/scripts/status.sh', 'r'], cwd=worktree)
+        status = self.run_cmd([PYTHON, '_system/scripts/sdlc.py', 'status', 'r'], cwd=worktree)
         self.assertIn('Stage 3: approved', status.stdout)
         self.assertEqual(result.stdout.splitlines()[-3:], [f'Checkout: {worktree}', 'Launch prompt (start a NEW session there):',
                                                             'Begin stage 3 (build) of SDLC run `r`.'])
@@ -445,7 +445,7 @@ class WorktreeMode(StageBase):
         self.new_run('r')
         self.commit_run()
         self.refuses('r', 5, message='run verify first: stage 5 reviews current evidence')
-        verify = self.run_cmd([str(self.root / '_system/scripts/verify.sh'), 'r'], cwd=self.root)
+        verify = self.run_cmd([PYTHON, str(self.root / '_system/scripts/sdlc.py'), 'verify', 'r'], cwd=self.root)
         self.assertIn('passed', verify.stdout)
         result = self.stage('r', 5, env=IDENT)
         review = self.root.parent / 'proj-review-r'
@@ -460,7 +460,7 @@ class WorktreeMode(StageBase):
         self.set_checks([PASSING])
         self.new_run('r')
         self.commit_run()
-        self.run_cmd([str(self.root / '_system/scripts/verify.sh'), 'r'], cwd=self.root)
+        self.run_cmd([PYTHON, str(self.root / '_system/scripts/sdlc.py'), 'verify', 'r'], cwd=self.root)
         (self.root / 'code.py').write_text('changed after verification\n')
         self.refuses('r', 5, message='run verify first: stage 5 reviews current evidence', env=IDENT)
 
@@ -474,7 +474,7 @@ class WorktreeMode(StageBase):
         self.commit_run()
 
     def verify_run(self):
-        return self.run_cmd([str(self.root / '_system/scripts/verify.sh'), 'r'], cwd=self.root)
+        return self.run_cmd([PYTHON, str(self.root / '_system/scripts/sdlc.py'), 'verify', 'r'], cwd=self.root)
 
     def test_stage_five_refuses_dirty_candidate_that_passed_verification(self):
         for variant in ('unstaged', 'staged', 'untracked'):

@@ -2,7 +2,7 @@
 
 Inputs: approved run artifacts, candidate checkout, `_system/verification.json`,
 and the accepted `test-lock.json` for bug runs.
-Run `_system/scripts/verify.sh <slug>`; no alternate runner bypasses the gate.
+Run `python3 _system/scripts/sdlc.py verify <slug>`; no alternate runner bypasses the gate.
 
 Outputs: generated `runs/<slug>/04-test/output/test-log.md` and `verification.json`.
 The gate requires successful configured checks bound to current candidate and

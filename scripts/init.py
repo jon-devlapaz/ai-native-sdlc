@@ -28,7 +28,7 @@ ROUTER_END = '<!-- End AI-Native SDLC Router -->'
 ROUTER = '''<!-- AI-Native SDLC Router -->
 ## SDLC Workspace
 - Read `_system/SDLC.md` for setup, evidence boundaries, and recovery.
-- Inspect `_system/scripts/status.sh` before creating a run.
+- Inspect `python3 _system/scripts/sdlc.py status` before creating a run.
 - Read `stages/<stage-name>/CONTEXT.md` before processing a stage.
 - Keep factory references in `_shared/` unchanged during feature runs.
 - Use separate worktrees or clones for code-writing runs.
