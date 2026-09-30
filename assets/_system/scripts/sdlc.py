@@ -235,6 +235,16 @@ def strip_generated_rules(data):
     return b''.join(out)
 
 
+def disposable(relative):
+    """Untracked paths that are generated, not authored: Python caches and what tink mounts leave in .tink/.
+
+    Tracked files stay covered even when their name resembles generated output."""
+    path = Path(relative)
+    if any(part in {'__pycache__', '.pytest_cache', '.ruff_cache'} for part in path.parts) or path.suffix in {'.pyc', '.pyo'}:
+        return True
+    return relative == '.tink/.gitignore' or relative.startswith(('.tink/.active/', '.tink/cache/'))
+
+
 def snapshot_files():
     """Per-file fingerprint map of the candidate: {relative: [digest, mode]}."""
     tracked = set(git('ls-files', '-z', '--cached').split(b'\0'))
@@ -246,11 +256,7 @@ def snapshot_files():
         relative = os.fsdecode(name)
         if relative.startswith('runs/'):
             continue
-        # Ignore disposable Python caches only when untracked. Tracked files
-        # remain covered even when their name resembles generated output.
-        parts = Path(relative).parts
-        if name not in tracked and (any(part in {'__pycache__', '.pytest_cache', '.ruff_cache'} for part in parts)
-                                    or Path(relative).suffix in {'.pyc', '.pyo'}):
+        if name not in tracked and disposable(relative):
             continue
         path = ROOT / relative
         if path.is_symlink():
@@ -936,10 +942,8 @@ def candidate_dirty(run):
     """Uncommitted paths that are part of the verified candidate (what verify fingerprints), not disposable caches or generated rules."""
     dirty = []
     for relative in stage_dirty(run):
-        parts = Path(relative).parts
-        tracked = bool(run_git(ROOT, 'ls-files', '--error-unmatch', '--', relative).returncode == 0)
-        if not tracked and (any(part in {'__pycache__', '.pytest_cache', '.ruff_cache'} for part in parts)
-                            or Path(relative).suffix in {'.pyc', '.pyo'}):
+        tracked = run_git(ROOT, 'ls-files', '--error-unmatch', '--', relative).returncode == 0
+        if not tracked and disposable(relative):
             continue
         if relative == 'AGENTS.md' and tracked:
             head = run_git(ROOT, 'show', 'HEAD:AGENTS.md')
@@ -970,7 +974,7 @@ def stage(args):
         if dirty:
             raise ValueError('stage 5 reviews a commit, and these candidate changes are uncommitted: ' + ', '.join(dirty[:5])
                              + (f' (+{len(dirty) - 5} more)' if len(dirty) > 5 else '')
-                             + '; commit the candidate changes, then run verify again')
+                             + '; commit the candidate changes (verify again only if the code changed since it passed)')
     pre_intent = stage_pre_intent(args.pre_intent) if args.pre_intent else None
     skillset = stage_skillset(n)
     stage_dir = STAGE_DIRS[n]
