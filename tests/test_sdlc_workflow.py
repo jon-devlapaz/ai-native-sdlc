@@ -298,6 +298,101 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, 2)
         run.assert_not_called()
 
+    ROUTER = '# Project\nrouter text\n'
+
+    def block(self, name, body='rule'):
+        return f'<!-- tink:rules begin skillset={name} -->\n{body}\n<!-- tink:rules end -->\n'
+
+    def agents(self, text):
+        (self.root / 'AGENTS.md').write_text(text)
+
+    def agents_ready(self, text):
+        self.agents(text)
+        self.git('add', 'AGENTS.md')
+        self.create_ready()
+        self.cli('verify', 'example')
+        self.assertIn('Verification: current', self.cli('status', 'example'))
+
+    def test_generated_rules_block_swap_keeps_evidence_current(self):
+        self.agents_ready(self.ROUTER + self.block('build', 'alpha'))
+        self.agents(self.ROUTER + self.block('testing', 'completely different'))
+        self.assertIn('Verification: current', self.cli('status', 'example'))
+
+    def test_generated_rules_block_removed_keeps_evidence_current(self):
+        self.agents_ready(self.ROUTER + self.block('build'))
+        self.agents(self.ROUTER)
+        self.assertIn('Verification: current', self.cli('status', 'example'))
+
+    def test_router_or_project_text_outside_block_stales_evidence(self):
+        self.agents_ready(self.ROUTER + self.block('build'))
+        self.agents(self.ROUTER + 'extra project rule\n' + self.block('build'))
+        self.assertIn('stale', self.cli('status', 'example'))
+        self.agents(self.ROUTER.replace('router', 'other') + self.block('build'))
+        self.assertIn('stale', self.cli('status', 'example'))
+
+    def test_malformed_rules_block_is_hashed_as_is(self):
+        malformed = '<!-- tink:rules begin skillset=build -->\nrule\n'
+        self.agents_ready(self.ROUTER + malformed)
+        self.agents(self.ROUTER + malformed.replace('rule', 'edited'))
+        self.assertIn('stale', self.cli('status', 'example'))
+
+    def test_agents_md_mode_still_hashed(self):
+        self.agents_ready(self.ROUTER + self.block('build'))
+        (self.root / 'AGENTS.md').chmod(0o755)
+        self.assertIn('stale', self.cli('status', 'example'))
+
+    def test_only_root_agents_md_is_normalised(self):
+        (self.root / 'sub').mkdir()
+        (self.root / 'sub/AGENTS.md').write_text(self.block('build', 'a'))
+        self.git('add', 'sub')
+        self.create_ready()
+        self.cli('verify', 'example')
+        (self.root / 'sub/AGENTS.md').write_text(self.block('build', 'b'))
+        self.assertIn('stale', self.cli('status', 'example'))
+
+    def test_mismatch_names_changed_file(self):
+        self.create_ready()
+        self.config([{'argv': ['python3', '-c', 'from pathlib import Path; Path("code.py").write_text("modified")'], 'timeout_seconds': 2}])
+        out = self.cli('verify', 'example', ok=False)
+        self.assertIn('Candidate or inputs changed during verification; rerun against stable inputs. changed: code.py', out)
+        self.assertNotIn('bytecode', out)
+        error = json.loads((self.root / 'runs/example/04-test/output/verification.json').read_text())['error']
+        self.assertIn('changed: code.py', error)
+
+    def test_mismatch_lists_added_deleted_and_caps_at_five(self):
+        self.create_ready()
+        script = ('from pathlib import Path\n'
+                  'Path("code.py").unlink()\n'
+                  '[Path(f"new{i}.txt").write_text("x") for i in range(6)]\n')
+        self.config([{'argv': ['python3', '-c', script], 'timeout_seconds': 2}])
+        out = self.cli('verify', 'example', ok=False)
+        self.assertIn('changed: code.py, new0.txt, new1.txt, new2.txt, new3.txt (+2 more)', out)
+
+    def test_mismatch_hints_at_tracked_bytecode(self):
+        self.create_ready()
+        (self.root / 'pkg/__pycache__').mkdir(parents=True)
+        (self.root / 'pkg/__pycache__/m.cpython-311.pyc').write_bytes(b'one')
+        (self.root / 'stray.pyc').write_bytes(b'one')
+        self.git('add', '-f', 'pkg', 'stray.pyc')
+        self.config([{'argv': ['python3', '-c', 'from pathlib import Path; Path("stray.pyc").write_bytes(b"two")'], 'timeout_seconds': 2}])
+        out = self.cli('verify', 'example', ok=False)
+        self.assertIn('changed: stray.pyc', out)
+        self.assertIn('tracked bytecode files change during test runs; untrack them and ignore __pycache__', out)
+        error = json.loads((self.root / 'runs/example/04-test/output/verification.json').read_text())['error']
+        self.assertIn('untrack them and ignore __pycache__', error)
+
+    def test_snapshot_files_map_backs_snapshot(self):
+        self.create_ready()
+        old_root = workflow.ROOT
+        workflow.ROOT = self.root
+        try:
+            files = workflow.snapshot_files()
+            self.assertIn('code.py', files)
+            self.assertEqual(workflow.snapshot()['tree'], workflow.digest(workflow.encoded(files)))
+            self.assertEqual(set(workflow.snapshot()), {'head', 'tree'})
+        finally:
+            workflow.ROOT = old_root
+
     def test_candidate_mutation_during_check(self):
         self.create_ready()
         self.config([{'argv': ['python3', '-c', 'from pathlib import Path; Path("code.py").write_text("modified")'], 'timeout_seconds': 2}])

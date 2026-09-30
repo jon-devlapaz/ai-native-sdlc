@@ -1,5 +1,5 @@
 {
-  "version": "1.5.1",
+  "version": "1.6.0",
   "files": {
     ".tink/skillsets/build-skillset.json": "7961ce9cb12dc34cb4ed0b47f54423fcfb8be3f8473640a687d69167a6a9f797",
     ".tink/skillsets/deployment-skillset.json": "df5d8dca37efd18475b0d0e4383be980e002fa0432da53a42b2ebd03c476379c",
@@ -12,15 +12,15 @@
     "_shared/intent-template.md": "93eebf7467c4a1e76b02e1da8629d28be4218c199739c88f51e58914a8d5d403",
     "_shared/plan-template.md": "fe93363211dcc70b73843b0fa7827f8f9ca7b26e185db7a6b6e9d2adf5a42c00",
     "_shared/spec-template.md": "d26109e578014743268696a97d0f83932b48be8b17a9a04bf6ec822b498caa28",
-    "_system/SDLC.md": "0babd6876246273a519562f9b055c0687a8e33872bb191f16294f50a6d8c138d",
+    "_system/SDLC.md": "be6d99153ac89ef6d9fdabaa6a1c5185c8953b9d00632c5c4a24f287a52257ae",
     "_system/scripts/new-run.sh": "5cefd13d71d3ad1f4dfdceb8ed85c2ac6f07ff4798f722df91c4d705305a260b",
-    "_system/scripts/sdlc.py": "d889b7ea54593a20f63af8bd9a7284f7071324d0836838e65e34482d7ef3cebb",
+    "_system/scripts/sdlc.py": "68dfebaa0dd0412510ce69454e0d2703976fd7846e303835c7ef289a312132a3",
     "_system/scripts/status.sh": "220b50bfca4d1dd6fcf786a9c834b295a3a8740efa8074a0846c8ad12a1a3c31",
     "_system/scripts/verify.sh": "ef2e22f7fd5a30ee4cbe54cc9eb4b08a093e5603a02f9bbf2b35d7784c10cc02",
     "_system/verification.json": "1308d67c7c43c1a8f5c90cde99a69e217a7fa7c553cece572ecf3228b50fa937",
-    "stages/01-plan/CONTEXT.md": "a8622cdc6ae6953b0bf8ce50c136ffa1452b69179b5191175477ae4f01a106eb",
-    "stages/02-design/CONTEXT.md": "83dacb30fc999cd7d2d111d2120506c9a2c6c04d35c3d3ec4b8675c3a755a123",
-    "stages/03-build/CONTEXT.md": "fa27299293d3f220df756809ac2471a8d7bf6a00275cca9e77a885d098a379c9",
+    "stages/01-plan/CONTEXT.md": "a1ce464c6523f5fc9eb0b3603fe9cf88e90bde5458e890a63efef9f6549e58e1",
+    "stages/02-design/CONTEXT.md": "0fb28b48922f7ac4d3c7c2a9df6951f812fddb9ddb3fe1a2ed13a63a32101543",
+    "stages/03-build/CONTEXT.md": "94e0a0d875c3ad5dfa620a76687fbbec3ce0bcd0adeb6202d40bee6bea24e207",
     "stages/04-test/CONTEXT.md": "5f19557e620d8c6e614eb064ea6cd871340507b724e710a640bc9925e2f0f17a",
     "stages/05-deploy/CONTEXT.md": "e044005a8c3e2faaabbce3b1e4c2eb432ef4d935f8123f2f66a42d5f8738502f",
     "stages/06-maintain/CONTEXT.md": "06ae2f81abf34c7a43a402d19b303e33998cf3dfd959d2b323292da40b82ae52"

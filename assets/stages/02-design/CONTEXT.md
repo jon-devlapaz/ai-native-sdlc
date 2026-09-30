@@ -9,7 +9,7 @@ for actual capability gaps. Required policy skills load deterministically.
 Follow the skill lifecycle and serialized CLI wrapper in `_system/SDLC.md`.
 
 Gate: full runs require a current stage 2 human decision before build planning.
-Light runs include design in the combined stage 3 definition review.
+Light runs include design in the combined stage 3 definition review. Light runs have ONE definition gate, recorded as stage 3 (`sdlc.py decide <run> 3 ...`): the approved `brief.md` + `checklist.json` are the intent, design and plan.
 Changing upstream inputs makes existing approvals stale; preserve feedback and
 revise the artifact rather than deleting downstream work.
 

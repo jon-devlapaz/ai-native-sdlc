@@ -221,8 +221,22 @@ def git(*args):
     return subprocess.check_output(['git', '-C', str(ROOT), *args], stderr=subprocess.PIPE)
 
 
-def snapshot():
-    head = git('rev-parse', 'HEAD').decode().strip()
+def strip_generated_rules(data):
+    """Drop each well-formed tink:rules block (so a removed block equals an excluded one); unbalanced markers are left as-is."""
+    lines = data.decode('utf-8', errors='surrogateescape').splitlines(keepends=True)
+    blocks, problems = rules_blocks(lines)
+    if not blocks or any('duplicate' not in problem for problem in problems):
+        return data
+    out, cursor = [], 0
+    for begin, end, _ in blocks:
+        out.append(''.join(lines[cursor:begin]).encode('utf-8', errors='surrogateescape'))
+        cursor = end + 1
+    out.append(''.join(lines[cursor:]).encode('utf-8', errors='surrogateescape'))
+    return b''.join(out)
+
+
+def snapshot_files():
+    """Per-file fingerprint map of the candidate: {relative: [digest, mode]}."""
     tracked = set(git('ls-files', '-z', '--cached').split(b'\0'))
     names = tracked | set(git('ls-files', '-z', '--others', '--exclude-standard').split(b'\0'))
     files = {}
@@ -243,12 +257,35 @@ def snapshot():
             value = os.readlink(path).encode()
         elif path.is_file():
             value = path.read_bytes()
+            if relative == 'AGENTS.md':
+                value = strip_generated_rules(value)
         elif not path.exists():
             value = b'<deleted>'
         else:
             raise ValueError(f'Unsupported candidate path: {relative}')
         files[relative] = [digest(value), path.lstat().st_mode if path.exists() or path.is_symlink() else 0]
-    return {'head': head, 'tree': digest(encoded(files))}
+    return files
+
+
+def snapshot():
+    head = git('rev-parse', 'HEAD').decode().strip()
+    return {'head': head, 'tree': digest(encoded(snapshot_files()))}
+
+
+def tracked_paths():
+    return {os.fsdecode(n) for n in git('ls-files', '-z', '--cached').split(b'\0') if n}
+
+
+def changed_report(before_files, after_files):
+    changed = sorted(name for name in set(before_files) | set(after_files) if before_files.get(name) != after_files.get(name))
+    if not changed:
+        return ''
+    shown = changed[:5]
+    text = ' changed: ' + ', '.join(shown) + (f' (+{len(changed) - 5} more)' if len(changed) > 5 else '')
+    tracked = tracked_paths()
+    if any(name in tracked and (Path(name).suffix in {'.pyc', '.pyo'} or '__pycache__' in Path(name).parts) for name in shown):
+        text += ' Hint: tracked bytecode files change during test runs; untrack them and ignore __pycache__'
+    return text
 
 
 def checks_config():
@@ -343,6 +380,7 @@ def verify(args):
         try:
             ready(path)
             config = checks_config()
+            before_files = snapshot_files()
             before = evidence_inputs(path)
             items = load_checklist(path)
             checks = list(config['checks'])
@@ -376,7 +414,8 @@ def verify(args):
                     if result.returncode:
                         raise ValueError(f"Checklist check failed: {item['id']}{log_hint}")
             if before != evidence_inputs(path):
-                raise ValueError('Candidate or inputs changed during verification; rerun against stable inputs.')
+                raise ValueError('Candidate or inputs changed during verification; rerun against stable inputs.'
+                                 + changed_report(before_files, snapshot_files()))
             ready(path)
             proof = {}
             if items is not None:
