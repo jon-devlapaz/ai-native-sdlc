@@ -50,7 +50,13 @@ class StageBase(unittest.TestCase):
         self.bin.mkdir()
         self.log = base / 'tink.log'
         shim = self.bin / 'tink'
-        shim.write_text('#!/bin/sh\necho "$PWD|$*" >> "$TINK_LOG"\n'
+        shim.write_text('#!/bin/sh\n'
+                        'if [ "$1" = "--version" ]; then echo "tink ${TINK_VERSION:-1.0.47}"; exit 0; fi\n'
+                        'if [ "$1 $2" = "use --help" ]; then\n'
+                        '  if [ -n "$TINK_NO_USE" ]; then echo "error: unrecognized subcommand \'use\'" >&2; exit 2; fi\n'
+                        '  echo "usage: tink use"; exit 0\n'
+                        'fi\n'
+                        'echo "$PWD|$*" >> "$TINK_LOG"\n'
                         'if [ -n "$TINK_FAIL" ]; then echo "boom: bad pin" >&2; echo "second line" >&2; exit 1; fi\n'
                         'echo "compiled"\nexit 0\n')
         shim.chmod(0o755)
@@ -717,6 +723,21 @@ class WorktreeMode(StageBase):
         (self.bin / 'tink-route').unlink()
         self.new_run('b')
         self.assertNotIn('tink-route', self.stage('b', 3, env=IDENT).stdout)
+
+    def test_a_tink_without_use_is_refused_before_anything_happens(self):
+        self.new_run('r')
+        old = {**IDENT, 'TINK_NO_USE': '1', 'TINK_VERSION': '1.0.41'}
+        result = self.refuses('r', 3, message="tink 1.0.41 has no `tink use`", env=old)
+        self.assertIn('upgrade tink', result.stderr)
+        self.assertEqual(self.tink_calls(), [])
+        check = self.stage('r', 3, '--check', ok=False, env=old)
+        self.assertIn("has no `tink use`", check.stderr)
+        self.assertFalse((self.base / 'work' / 'proj-r').exists())
+
+    def test_a_tink_with_use_passes_the_capability_check_silently(self):
+        self.new_run('r')
+        result = self.stage('r', 3, env={**IDENT, 'TINK_VERSION': '1.0.47'})
+        self.assertNotIn('has no `tink use`', result.stdout + result.stderr)
 
     def test_tink_failure_removes_the_worktree_and_retry_works(self):
         self.new_run('r')
