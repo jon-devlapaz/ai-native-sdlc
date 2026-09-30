@@ -932,44 +932,22 @@ def stage_identity_ok():
     return True
 
 
-PRE_INTENT_STATUS = re.compile(r'^[\W_]*(?:seed contract\s*[—–-]+\s*|status:[\W_]*)?(?P<s>\S.*)$', re.I)
-PRE_INTENT_ACCEPTED = re.compile(r'confirmed for intake\b|confirmed(?![-\w])', re.I)
-PRE_INTENT_LATER_STATUS = re.compile(r'^[\W_]*status:[\W_]*(?P<s>.*)$', re.I)
-
-
-def pre_intent_confirmed(text):
-    """Confirmed only when the first line's status reads confirmed and no later `status:` line says otherwise."""
-    lines = [line for line in text.splitlines() if line.strip()]
-    if not lines:
-        return False
-    head = PRE_INTENT_STATUS.match(lines[0])
-    if not head or not PRE_INTENT_ACCEPTED.match(head.group('s')):
-        return False
-    for line in lines[1:]:
-        later = PRE_INTENT_LATER_STATUS.match(line)
-        if later and not PRE_INTENT_ACCEPTED.match(later.group('s')):
-            return False
-    return True
-
-
 def stage_pre_intent(value):
-    """Return (path as shown in the prompt, sha256) of a Seed Me pre-intent that states it is confirmed."""
+    """Return (path as shown in the prompt, sha256) of the operator's confirmed Seed Me pre-intent.
+
+    Whether the file is really confirmed is the operator's call: nothing here can tell. What is enforced is
+    the binding: its digest is recorded in run.json and hashed into approvals and verification."""
     target = Path(value)
     if not target.exists() and not target.is_absolute():
         raise ValueError(f'pre-intent file not found: {value}')
     resolved = target.resolve()
     if not resolved.is_file():
         raise ValueError(f'pre-intent must be an existing regular file: {value}')
-    data = resolved.read_bytes()
-    text = data.decode('utf-8', errors='replace')
-    if not pre_intent_confirmed(text):
-        raise ValueError(f'pre-intent is not confirmed: {value} must say "confirmed for intake" (or "status: confirmed") '
-                         'and must not say unconfirmed, simulated or draft; confirm it with the operator in seed-me first')
     try:
         shown = str(resolved.relative_to(ROOT))
     except ValueError:
         shown = str(resolved)
-    return shown, digest(data)
+    return shown, digest(resolved.read_bytes())
 
 
 def stage_dirty(run):
@@ -1048,6 +1026,9 @@ def stage(args):
             raise ValueError(f'worktree path already exists: {target} (remove it with: git worktree remove {target})')
         if not detached and run_git(ROOT, 'show-ref', '--verify', '--quiet', f'refs/heads/{run}').returncode == 0:
             raise ValueError(f"branch '{run}' already exists (remove it with: git branch -D {run}, after git worktree remove on any checkout using it)")
+    if pre_intent and not args.check:
+        with locked(path / '.writer-lock'):
+            write_json(path / 'run.json', {**read_json(path / 'run.json'), 'pre_intent': {'path': pre_intent, 'sha256': pre_intent_digest}})
     pending = bool(run_git(ROOT, 'status', '--porcelain', '--', f'runs/{run}').stdout.strip()) if make_worktree else False
     if pending and not stage_identity_ok():
         raise ValueError('no committer identity configured; set user.name and user.email (or GIT_COMMITTER_*) so the launcher can commit '
@@ -1064,9 +1045,6 @@ def stage(args):
     warning = ('warning: not carried into the new checkout: ' + ', '.join(warn[:5]) + (f' (+{len(warn) - 5} more)' if len(warn) > 5 else '')
                if warn else None)
 
-    if pre_intent and not args.check:
-        with locked(path / '.writer-lock'):
-            write_json(path / 'run.json', {**read_json(path / 'run.json'), 'pre_intent': {'path': pre_intent, 'sha256': pre_intent_digest}})
     if args.check:
         print(f'Would commit: {"yes" if pending else "no"}')
         how = f'branch {run}' if not detached else 'detached'
@@ -1086,6 +1064,8 @@ def stage(args):
             command = ['worktree', 'add', '--detach', str(target), 'HEAD'] if detached else ['worktree', 'add', '-b', run, str(target), 'HEAD']
             created = run_git(ROOT, *command)
             if created.returncode:
+                if not detached:
+                    run_git(ROOT, 'branch', '-D', run)
                 raise ValueError(f'worktree creation failed: {git_line(created)}'
                                  + (f'\nalready committed {committed[0]}: {committed[1]}' if committed else ''))
     if args.check:

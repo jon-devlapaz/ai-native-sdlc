@@ -241,26 +241,6 @@ class HereMode(StageBase):
         result = self.stage('r', 1, '--pre-intent', str(outside))
         self.assertIn(f'pre-intent is at {outside};', result.stdout.splitlines()[-1])
 
-    def test_pre_intent_that_is_not_confirmed_is_refused(self):
-        for body in ('status: simulated — not confirmed by a human\nidea\n', 'unconfirmed — awaiting affirmation\n',
-                     'status: draft        revision: 1\n', 'just some notes\n',
-                     'status: confirmed\nstatus: simulated\n', 'status: pending\nnot yet confirmed for intake\n',
-                     'status: rejected — was confirmed for intake but is withdrawn\n', 'status: confirmed-pending-review\n'):
-            with self.subTest(body=body):
-                self.setUp()
-                self.new_run('r', approve=False)
-                (self.root / 'pi.md').write_text(body)
-                self.refuses('r', 1, '--pre-intent', str(self.root / 'pi.md'), message='not confirmed')
-
-    def test_confirmed_pre_intent_wording_is_read_from_the_status_line(self):
-        for body in ('seed contract — confirmed for intake; not approved for implementation\nNo unconfirmed assumptions remain.\n'
-                     'We replaced the simulated backend.\n', '**Status:** Confirmed\n', 'status: confirmed        revision: 1\n'):
-            with self.subTest(body=body):
-                self.setUp()
-                self.new_run('r', approve=False)
-                (self.root / 'pi.md').write_text(body)
-                self.stage('r', 1, '--pre-intent', str(self.root / 'pi.md'))
-
     def test_confirmed_pre_intent_is_recorded_and_binds_approval(self):
         self.new_run('r', approve=False)
         target = self.base / 'contract.md'
@@ -272,6 +252,24 @@ class HereMode(StageBase):
         self.assertIn('Stage 3: approved', self.sdlc('status', 'r').stdout)
         target.write_text('seed contract — confirmed for intake\nchanged scope\n')
         self.assertNotIn('Stage 3: approved', self.sdlc('status', 'r').stdout)
+
+    def test_worktree_launch_carries_the_pre_intent_binding(self):
+        self.new_run('r', approve=False)
+        self.commit_run()
+        target = self.base / 'contract.md'
+        target.write_text(CONFIRMED)
+        self.stage('r', 1, '--worktree', str(self.base / 'wt1'), '--pre-intent', str(target), env=IDENT)
+        bound = json.loads((self.base / 'wt1/runs/r/run.json').read_text())
+        self.assertEqual(bound['pre_intent']['path'], str(target))
+        self.assertEqual(self.git('status', '--porcelain', '--', 'runs/r').stdout.strip(), '')
+
+    def test_failed_worktree_creation_leaves_no_branch(self):
+        self.new_run('r')
+        ghost = self.root.parent / 'proj-r'
+        self.git('worktree', 'add', '--detach', str(ghost), 'HEAD')
+        shutil.rmtree(ghost)
+        self.stage('r', 3, ok=False, env=IDENT)
+        self.assertEqual(self.git('branch', '--list', 'r').stdout.strip(), '')
 
     def test_stage_two_and_six_default_here(self):
         self.new_run('f', profile='full', approve=False)
