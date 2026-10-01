@@ -20,13 +20,17 @@ python3 <skill-directory>/scripts/init.py <target-checkout> --check
 python3 <skill-directory>/scripts/init.py <target-checkout>
 ```
 
-The preparse reports collisions; the installer refuses unmanaged, partial, modified,
-or different-version scaffolds instead of overwriting them. There is no `--force`.
+The preparse reports collisions; plain initialization refuses unmanaged, partial,
+modified, or different-version scaffolds instead of overwriting them. There is no `--force`.
+For an existing installation, preview the upgrade with
+`python3 <skill-directory>/scripts/init.py <target-checkout> --upgrade --check`,
+then apply it with `--upgrade`. Customized managed files block the upgrade;
+review the reported diffs before proceeding. Project-owned configuration and
+skillset pins are preserved. See `_system/SDLC.md` for upgrade and recovery details.
 The installed operator guide is `_system/SDLC.md`. Verification starts unconfigured;
 populate it with real project checks before relying on passing receipts. Repeated
-initialization preserves that configuration. Initialization is not an upgrade mechanism;
-compare a fresh temporary installation to plan migrations separately, and keep factory
-templates untouched during active runs to preserve stage contracts.
+initialization preserves that configuration. Keep factory templates untouched during
+active runs to preserve stage contracts.
 
 ## Workflow
 
