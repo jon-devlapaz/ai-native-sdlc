@@ -20,7 +20,7 @@ WRAPPER = re.compile(r'\b(status|verify|new-run)\.sh\b')
 def shipped_text_files():
     files = [p for p in ASSETS.rglob('*') if p.is_file() and p.suffix in {'.md', '.py', '.json'} and p.name != 'manifest.json'
              and '__pycache__' not in p.parts]
-    return files + [INIT, ROOT / 'README.md']
+    return files + [INIT, ROOT / 'README.md', ROOT / 'SKILL.md', ROOT / 'references/lifecycle-stages.md']
 
 
 class EntryPoint(unittest.TestCase):

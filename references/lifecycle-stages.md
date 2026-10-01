@@ -16,8 +16,8 @@ own outputs and gates; this index does not duplicate them.
 For a new run, after checking existing runs:
 
 ```sh
-_system/scripts/new-run.sh <slug> --profile <light-or-full> --kind <feature-or-bug>
-_system/scripts/status.sh <slug>
+python3 _system/scripts/sdlc.py new <slug> --profile <light-or-full> --kind <feature-or-bug>
+python3 _system/scripts/sdlc.py status <slug>
 ```
 
 For an existing run, inspect `runs/<slug>/run.json` and status; do not infer the
