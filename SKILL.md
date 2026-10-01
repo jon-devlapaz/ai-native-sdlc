@@ -31,7 +31,7 @@ templates untouched during active runs to preserve stage contracts.
 ## Workflow
 
 1. **Locate and resume.** Read the target checkout's `AGENTS.md`, then run
-   `_system/scripts/status.sh`. Select the existing run matching the request;
+   `python3 _system/scripts/sdlc.py status`. Select the existing run matching the request;
    inspect its `run.json` and status before creating anything. Commands operate
    on the checkout containing the scripts, not an arbitrary application repository.
    Resolve ambiguous target checkouts before mutations.
@@ -55,7 +55,7 @@ templates untouched during active runs to preserve stage contracts.
 5. **Verify and report.** When the active stage or changed candidate requires
    verification, inspect `_system/verification.json` before claiming what it proves:
    new installations require project-specific checks. Run
-   `_system/scripts/verify.sh <slug>`, then check current status. The generated
+   `python3 _system/scripts/sdlc.py verify <slug>`, then check current status. The generated
    receipt is `runs/<slug>/04-test/output/verification.json`. If verification is
    not required, inspect status directly. Report the completed action, evidence,
    next valid action, and any external approval or deployment result still missing.
