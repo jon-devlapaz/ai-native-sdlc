@@ -1,6 +1,9 @@
 # Plan: bringing wayfinder's ideas into seed-me (DRAFT r0, 2026-09-28)
 
 Status: **proposal for the operator's review. Nothing here is implemented or approved.**
+
+Naming update: this repository's historical root artifact is now [seed-contract.md](../seed-contract.md), and the Repo forest record is now [seed-contract.md](dogfood/repo-forest/seed-contract.md). The plan below retains its original naming and compatibility policy; these renames do not implement the proposed phases or alter recorded decisions.
+
 Source: the [wayfinder skill](https://github.com/mattpocock/skills/tree/main/skills/engineering/wayfinder), read through fetched summaries (not the raw file line by line; `agents/openai.yaml` not opened), compared with seed-me and the UX review of the repo-triage session.
 
 ## Principle

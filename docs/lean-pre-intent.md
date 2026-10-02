@@ -1,8 +1,8 @@
-# Lean pre-intent (experiment r0, 2026-09-28)
+# Lean seed contract (experiment r0, 2026-09-28)
 
 One living markdown file, edited by the user and the agent. No server, no ledger, no enforcement.
 Rigor lives downstream (Stage 1 validator, gates). Here the rule is: typed but soft.
-Location: `runs/<slug>/pre-intent.md`. History: git (or plain file copies) if wanted.
+Location: `runs/<slug>/seed-contract.md`. History: git (or plain file copies) if wanted.
 
 ## Conventions (the only rules)
 1. Every item has an id (`G`, `D1`, `C1`, `A1`, `Q1`, `E1`) and an author tag: `[user]`, `[agent]`, `[evidence]`.
@@ -18,7 +18,7 @@ Location: `runs/<slug>/pre-intent.md`. History: git (or plain file copies) if wa
 ## Template
 
 ```markdown
-# Pre-intent: <title>
+# Seed contract: <title>
 status: draft | confirmed        revision: 1        date: YYYY-MM-DD
 
 ## Now  (agent keeps these four lines current)
@@ -48,7 +48,7 @@ E1 [evidence] "<quoted line>" (<path>:<line>)
 ```
 
 ## What we are testing
-- Does this produce a usable `pre-intent.md` with much less machinery than seed-me?
+- Does this produce a usable `seed-contract.md` with much less machinery than seed-me?
 - Can you return after a break and read `Now` to know where things stand?
 - Later: do the Stage 1 validator's warnings and your post-acceptance edits look better or worse than with the heavy version?
 

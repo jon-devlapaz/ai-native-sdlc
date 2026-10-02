@@ -1,6 +1,8 @@
 # Intake confirmation receipt
 
-**pre-intent — confirmed for intake; not approved for implementation**
+**Seed contract — confirmed for intake; not approved for implementation**
+
+Renamed from `pre-intent.md`. The original receipt and reviewed r2 draft below retain their historical wording and paths; the rename does not change their approval scope.
 
 This receipt supersedes only the save-pending statements in the preserved r2 draft below. It does not approve execution or change the requirements or epistemic matrix.
 

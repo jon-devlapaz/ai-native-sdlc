@@ -1,4 +1,4 @@
-# Pre-intent: Repo forest (isometric view of local git repos)
+# Seed contract: Repo forest (isometric view of local git repos)
 status: confirmed (by user in chat, 2026-09-28: "confirmed")        revision: 1        date: 2026-09-28
 
 ## Now
