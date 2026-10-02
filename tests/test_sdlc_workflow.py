@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 import tempfile
 import time
@@ -548,6 +549,75 @@ class WorkflowTests(unittest.TestCase):
         out = self.cli('status', 'example')
         self.assertIn('Checklist: 0/1 passed', out)
         self.assertNotIn('beta', out)
+
+    def assert_status_review_hint(self, stage=None):
+        # All approvals in these isolated fixtures are synthetic test data.
+        run = self.root / 'runs/example'
+        def contents():
+            return {str(p.relative_to(run)): p.read_bytes()
+                    for p in run.rglob('*') if p.is_file()}
+        before = contents()
+        out = self.cli('status', 'example')
+        self.assertEqual(contents(), before, 'status must not alter the run')
+        hints = [line.strip() for line in out.splitlines()
+                 if line.strip().startswith('python3 _system/scripts/sdlc.py decide ')]
+        if stage is None:
+            self.assertEqual(hints, [])
+            return out
+        self.assertEqual(len(hints), 1, out)
+        command = shlex.split(hints[0])
+        self.assertEqual(command, ['python3', '_system/scripts/sdlc.py', 'decide',
+                                  'example', str(stage), 'DECISION', '--reviewer',
+                                  'REVIEWER', '--source', 'SOURCE', '--reason', 'REASON'])
+        self.assertIn('After human review', out)
+        self.assertIn('approved or changes-requested', out)
+        copied = subprocess.run(command, cwd=self.root, capture_output=True, text=True)
+        self.assertEqual(copied.returncode, 2, copied.stdout + copied.stderr)
+        self.assertIn("invalid choice: 'DECISION'", copied.stderr)
+        self.assertEqual(contents(), before, 'literal placeholders must not record a decision')
+        return out
+
+    def test_light_status_review_hint(self):
+        self.cli('new', 'example')
+        self.write_checklist([self.item('alpha')])
+        self.assert_status_review_hint(3)
+        self.approve()
+        self.assert_status_review_hint()
+        (self.root / 'runs/example/brief.md').write_text('changed requirements')
+        self.assertIn('Stage 3: stale', self.assert_status_review_hint(3))
+        self.cli('decide', 'example', '3', 'changes-requested', '--reviewer',
+                 'synthetic-human', '--source', 'isolated-test', '--reason', 'scope')
+        self.assertIn('Stage 3: changes-requested', self.assert_status_review_hint(3))
+
+    def test_full_status_review_hint(self):
+        self.cli('new', 'example', '--profile', 'full')
+        self.write_checklist([self.item('alpha')])
+        for stage in ['1', '2', '3']:
+            out = self.assert_status_review_hint(int(stage))
+            for blocked in range(int(stage) + 1, 4):
+                self.assertIn(f'Stage {blocked}: pending (blocked by upstream gate)', out)
+            self.approve(stage)
+        self.assert_status_review_hint()
+        artifacts = [(3, '03-build/output/plan.md'),
+                     (2, '02-design/output/spec.md'),
+                     (1, '01-plan/output/intent.md')]
+        for stage, artifact in artifacts:
+            with self.subTest(stage=stage):
+                path = self.root / 'runs/example' / artifact
+                path.write_text(path.read_text() + '\nchanged requirements')
+                self.assertIn(f'Stage {stage}: stale', self.assert_status_review_hint(stage))
+                self.cli('decide', 'example', str(stage), 'changes-requested',
+                         '--reviewer', 'synthetic-human', '--source', 'isolated-test',
+                         '--reason', 'scope')
+                self.assertIn(f'Stage {stage}: changes-requested', self.assert_status_review_hint(stage))
+                for renewed in range(stage, 4):
+                    self.approve(str(renewed))
+                self.assert_status_review_hint()
+
+    def test_status_run_list_has_no_review_hint(self):
+        self.assertNotIn('decide ', self.cli('status'))
+        self.cli('new', 'example')
+        self.assertEqual(self.cli('status'), 'example\n')
 
     def test_status_checklist_lines(self):
         self.checklist_ready(('alpha', 'beta', 'gamma'))

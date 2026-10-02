@@ -564,6 +564,10 @@ def status(args):
         print(f'Stage {stage}: {state}' + (' (blocked by upstream gate)' if blocked else ''))
         if state != 'approved' and not blocked:
             print(f'Next: revise/review stage {stage}; record the human decision.')
+            print('After human review, fill in this command from the scaffold root '
+                  '(DECISION: approved or changes-requested):')
+            print(f"  python3 _system/scripts/sdlc.py decide {args.run} {stage} DECISION "
+                  "--reviewer 'REVIEWER' --source 'SOURCE' --reason 'REASON'")
             blocked = True
     record_path = path / '04-test/output/verification.json'
     record = read_json(record_path) if record_path.exists() else None
