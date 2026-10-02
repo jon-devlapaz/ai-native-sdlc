@@ -10,7 +10,7 @@ project integrations. Content hashes detect changes; they are not signatures.
 From this skill collection:
 
 ```sh
-tink skill add jon-devlapaz/ai-native-sdlc
+tink skill add jon-devlapaz/tink-sdlc
 python3 .agents/skills/ai-native-sdlc/scripts/init.py . --check
 python3 .agents/skills/ai-native-sdlc/scripts/init.py .
 ```
