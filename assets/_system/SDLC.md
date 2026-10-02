@@ -11,6 +11,13 @@ python3 _system/scripts/sdlc.py new fix-example --kind bug
 python3 _system/scripts/sdlc.py status fix-example
 ```
 
+### Claude Code command access
+
+Dogfood observed Claude Code permission prompts for `python3` and `git`. Review each
+command before allowing it; this note is not a blanket allowlist. Optional Tink
+integrations also invoke `tink` and `tink-route` when installed. Recheck the actual
+prompts and commands before release.
+
 The default `light` profile creates one `brief.md`: problem, acceptance criteria, approach, risks, and verification, plus `checklist.json` for the implementation checklist. Use `--profile full` for consequential architecture or policy changes; it creates the existing intent/spec/plan artifacts. A human selects the appropriate profile. Legacy artifacts without run metadata remain drafts; text approval tags are not imported as evidence.
 
 After the human accepts the brief, record the actual review reference:
