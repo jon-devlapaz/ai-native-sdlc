@@ -528,6 +528,31 @@ class WorktreeMode(StageBase):
                 result = self.refuses('r', 5, message='commit the candidate changes', env=IDENT)
                 self.assertIn('cand.py' if variant != 'untracked' else 'newmod.py', result.stderr)
 
+    def test_stage_five_refuses_executable_mode_missing_from_commit_when_filemode_disabled(self):
+        self.review_candidate_setup()
+        candidate = self.root / 'cand.py'
+        candidate.write_text('value = "verified"\n')
+        candidate.chmod(0o755)
+        self.git('config', 'core.fileMode', 'false')
+        self.git('add', 'cand.py')
+        self.git('commit', '-qm', 'implementation', env=IDENT)
+        self.assertEqual(self.git('status', '--porcelain').stdout, '')
+        self.verify_run()
+        result = self.refuses('r', 5, message='cand.py', env=IDENT)
+        self.assertIn('mode', result.stderr.lower())
+
+    def test_stage_five_ignores_unrelated_dirty_run_artifacts(self):
+        self.set_checks([PASSING])
+        self.new_run('r')
+        self.commit_run()
+        self.verify_run()
+        other = self.root / 'runs/other/01-plan/output/intent.md'
+        other.parent.mkdir(parents=True)
+        other.write_text('unrelated run evidence\n')
+        result = self.stage('r', 5, '--check', env=IDENT)
+        self.assertIn('Would create worktree:', result.stdout)
+        self.assertIn(f'warning: not carried into the new checkout: {other.relative_to(self.root)}', result.stdout)
+
     def test_stage_five_opens_when_the_verified_candidate_is_committed(self):
         self.review_candidate_setup()
         (self.root / 'cand.py').write_text('value = "verified"\n')
@@ -704,17 +729,24 @@ class WorktreeMode(StageBase):
         shim.chmod(0o755)
 
     def test_stage_warns_when_tink_route_predates_whole_library_routing(self):
-        for old in ('0.8.0', '0.9.0'):
+        for old in ('0.8.0', '0.9.0', '0.9.0rc1', '0.10.0-rc1', '0.8'):
             with self.subTest(version=old):
                 self.setUp()
                 self.new_run('r')
                 self.route_shim(old)
                 result = self.stage('r', 3, env=IDENT)
-                self.assertIn(f'warning: tink-route {old} is older than 0.10.0', result.stdout)
-                self.assertIn('scopes routing to the stage shelf', result.stdout)
+                self.assertIn(f'warning: tink-route {old}', result.stdout)
+                self.assertIn('whole-library routing', result.stdout)
                 self.assertNotIn('ignores', result.stdout)
                 self.assertIn('Launch prompt', result.stdout)
                 self.assertIn('pipx install --force git+https://github.com/jon-devlapaz/tink-route.git', result.stdout)
+
+    def test_stage_warns_when_tink_route_version_is_unrecognized(self):
+        self.new_run('r')
+        self.route_shim('version unknown')
+        result = self.stage('r', 3, env=IDENT)
+        self.assertIn('warning: could not determine whether tink-route supports whole-library routing', result.stdout)
+        self.assertIn('upgrade:', result.stdout)
 
     def test_stage_is_quiet_when_tink_route_is_current_or_absent(self):
         self.new_run('a')

@@ -978,6 +978,29 @@ def stage_dirty(run):
     return [p for p in paths if not p.startswith(f'runs/{run}/') and p not in (f'runs/{run}', f'runs/.{run}.lock')]
 
 
+def tracked_mode_mismatches():
+    """Tracked executable-bit changes Git may hide when core.fileMode is false."""
+    result = run_git(ROOT, 'ls-files', '--stage', '-z')
+    if result.returncode:
+        return []
+    dirty = []
+    for entry in result.stdout.split('\0'):
+        metadata, separator, relative = entry.partition('\t')
+        fields = metadata.split()
+        if not separator or len(fields) != 3 or fields[2] != '0' or fields[0] not in ('100644', '100755'):
+            continue
+        if relative.startswith('runs/'):
+            continue
+        path = ROOT / relative
+        try:
+            actual_executable = bool(path.lstat().st_mode & 0o111)
+        except OSError:
+            continue  # Git's normal status check reports missing or inaccessible paths.
+        if actual_executable != (fields[0] == '100755'):
+            dirty.append(relative)
+    return dirty
+
+
 def prune_empty_parents(target, stop):
     """Remove empty directories git created above `target`, up to but never including `stop` (the deepest one that existed)."""
     parent = Path(target).parent
@@ -992,7 +1015,13 @@ def prune_empty_parents(target, stop):
 def candidate_dirty(run):
     """Uncommitted paths that are part of the verified candidate (what verify fingerprints), not disposable caches or generated rules."""
     dirty = []
-    for relative in stage_dirty(run):
+    paths = stage_dirty(run)
+    paths.extend(path for path in tracked_mode_mismatches() if path not in paths)
+    for relative in paths:
+        # Run evidence is committed by the launcher when needed and is excluded from
+        # the verified candidate fingerprint; another run's working files are unrelated.
+        if relative.startswith('runs/'):
+            continue
         tracked = run_git(ROOT, 'ls-files', '--error-unmatch', '--', relative).returncode == 0
         if not tracked and disposable(relative):
             continue
@@ -1008,19 +1037,33 @@ MIN_TINK_ROUTE = (0, 10, 0)
 
 
 def tink_route_warning():
-    """One warning line when an installed tink-route predates whole-library routing, else None."""
+    """One actionable warning when the installed version is old or cannot be confirmed."""
     route = shutil.which('tink-route')
     if not route:
         return None
     try:
-        out = subprocess.run([route, '--version'], capture_output=True, text=True, timeout=10).stdout
+        result = subprocess.run([route, '--version'], capture_output=True, text=True, timeout=10)
     except (subprocess.TimeoutExpired, OSError):
         return None
-    match = re.search(r'(\d+)\.(\d+)\.(\d+)', out)
-    if not match or tuple(int(g) for g in match.groups()) >= MIN_TINK_ROUTE:
+    out = result.stdout.strip() or result.stderr.strip()
+    match = re.search(
+        r'(?<![A-Za-z0-9])v?(\d+)\.(\d+)(?:\.(\d+))?'
+        r'([.-]?(?:rc|a|b|dev|alpha|beta|pre|preview)\.?[0-9A-Za-z.-]*)?'
+        r'(?:\+[0-9A-Za-z.-]+)?(?![A-Za-z0-9.+-])', out, re.I)
+    upgrade = 'upgrade: pipx install --force git+https://github.com/jon-devlapaz/tink-route.git'
+    if not match:
+        detail = out[:120] if out else f'exit code {result.returncode} with no version output'
+        return ('warning: could not determine whether tink-route supports whole-library routing '
+                f'(version output: {detail}); {upgrade}')
+    version = match.group(0)
+    parts = tuple(int(match.group(index) or 0) for index in (1, 2, 3))
+    prerelease = bool(match.group(4))
+    if parts >= MIN_TINK_ROUTE and not prerelease:
         return None
-    return (f'warning: tink-route {match.group(0)} is older than {".".join(map(str, MIN_TINK_ROUTE))} and scopes routing to the stage shelf; '
-            'upgrade: pipx install --force git+https://github.com/jon-devlapaz/tink-route.git')
+    reason = (f'is a prerelease of {".".join(map(str, parts))}' if prerelease and parts >= MIN_TINK_ROUTE
+              else f'is older than {".".join(map(str, MIN_TINK_ROUTE))}')
+    return (f'warning: tink-route {version} {reason} and may not support whole-library routing; '
+            f'upgrade: pipx install --force git+https://github.com/jon-devlapaz/tink-route.git')
 
 
 PICK_LIMIT = 120000
@@ -1108,9 +1151,12 @@ def stage(args):
     if n == 5:
         dirty = candidate_dirty(run)
         if dirty:
+            mode_dirty = sorted(set(dirty) & set(tracked_mode_mismatches()))
+            mode_note = ('; tracked executable mode is not represented in the Git index: ' + ', '.join(mode_dirty[:5])
+                         if mode_dirty else '')
             raise ValueError('stage 5 reviews a commit, and these candidate changes are uncommitted: ' + ', '.join(dirty[:5])
                              + (f' (+{len(dirty) - 5} more)' if len(dirty) > 5 else '')
-                             + '; commit the candidate changes (verify again only if the code changed since it passed)')
+                             + mode_note + '; commit the candidate changes (verify again only if the code changed since it passed)')
     seed_source, seed_bytes = stage_seed_contract(args.seed_contract) if args.seed_contract else (None, None)
     seed_contract = f'runs/{run}/seed-contract.md' if seed_source else None
     skillset = stage_skillset(n)
