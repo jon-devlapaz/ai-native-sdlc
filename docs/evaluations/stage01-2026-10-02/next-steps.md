@@ -35,10 +35,35 @@ The build answers do not block the authorized next inspection, so their later
 questions alone do not fail the clarified permission rule.
 
 These criteria were clarified after seeing the outputs. The current researcher
-has seen the candidates and answers; this is not independent evidence, human
-calibration, or a new model trial. All owner-label fields remain unset. Original
-scores and the frozen archive are unchanged. The result still provides no reason
-to add either instruction; use it to improve grading before evaluating handoffs.
+has seen the candidates and answers; this is not independent evidence or a new
+writer trial. Original scores and the frozen archive are unchanged. The result
+still provides no reason to add either instruction.
+
+### Owner review recorded
+
+Jon replied, “Yes, use those four judgments,” to the explicit four-answer review.
+The [owner labels](owner-labels.json) record the question, reply, source answer IDs,
+and answer hashes. Long/sort fails for the unsupported requester name; all three
+build answers pass because future questions do not block permitted inspection.
+Only those four answers have owner labels; the remaining eight do not.
+
+Check the revised model judge against these four saved answers without disclosing
+the labels in its prompts. This is calibration on reviewed examples, not an unseen
+test or evidence that the judge is reliable for every handoff.
+
+### Judge check completed
+
+The revised `gpt-6.1-sol` judge matched all four owner labels in four calls, including
+the unsupported-name reason. It received the original requests and answers, not
+the labels. No writer answers were generated. The [per-answer results](calibration-results.json)
+and [separate calibration archive](calibration-evidence.tar.gz) retain the complete
+prompts, model replies, owner labels, usage, and error records.
+
+The live run's local comparison assertion had a syntax error. The four model replies
+were valid; the assertion was corrected and those same replies replayed offline.
+The original failed comparison remains saved. The repaired comparison matched 4/4
+with zero additional model calls. This validates these reviewed examples only;
+the full handoff evaluation below remains pending.
 
 ## Then: evaluate the actual handoff
 

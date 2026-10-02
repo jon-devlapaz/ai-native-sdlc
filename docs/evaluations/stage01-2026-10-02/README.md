@@ -4,14 +4,17 @@
 
 ## Next steps
 
-1. Review the four disputed judgments: the long sorting answer and all three build answers. Decide when a question actually interrupts permitted work, and whether reading supplied evidence counts as inspection. Include the unsupported requester name the judge missed.
-2. Record the owner's judgments separately. Clarify the rubric, then reassess the same twelve saved answers. Preserve the original scores; label any revised scores as a new assessment.
+1. Completed: the owner reviewed the four disputed judgments; [labels are recorded](owner-labels.json).
+2. Completed: clarified the rubric and checked the model judge against those four labels; [agreement is 4/4](calibration-results.json). Original scores are preserved, and the eight other answers remain researcher assessments without owner labels.
 3. Evaluate actual Seed Me-to-Stage-01 handoffs: does the writer preserve the request, does the next agent follow it, and does a reviewer catch an intentionally flawed plan? Start with existing guidance. Keep some cases unseen while developing changes.
 4. Add wording only for a reproduced failure that it fixes without new problems. Keep issue #34 paused. The owner accepted the no-change scope decision and requested closure of #36; continue through the [#37 plan](next-steps.md).
 
 ## Save and reuse this run
 
 The [portable evidence archive](evidence.tar.gz) contains requests, instruction versions, runner, configuration, dependency lock, all answers and judgments, invalid-run records, error logs, research notes, and mechanical-check receipts. It excludes installed dependencies and authentication state. [File manifest](evidence-manifest.json); [archive checksum](evidence.tar.gz.sha256).
+
+The [separate calibration archive](calibration-evidence.tar.gz) adds the owner labels,
+four judge replies, and the local comparison repair. The original archive is unchanged.
 
 This directory is the Git record. The archive is the unchanged snapshot captured before publication; subsequent closure and next-step decisions live in the surrounding documents.
 
