@@ -1,6 +1,15 @@
 # seed-me QA plan: verification, validation, and where Jev fits (DRAFT r0, 2026-09-29)
 
-Status: proposal. Nothing here is built. Jev facts come from docs.typesafe.ai pages fetched through summaries; no API call has been made and no key has been confirmed.
+Status at initial drafting (2026-09-29): proposal. The later deterministic run
+below records implemented conduct checks; it does not establish semantic quality.
+Jev facts came from docs.typesafe.ai summaries, without a verified API trial.
+
+Review disposition (2026-10-02, issue #36): retain this defect taxonomy and the
+existing conduct checks. Provider requirements and probe-policy changes are
+deferred. Historical prices, percentages, and suggested thresholds are not local
+acceptance evidence. The [scope review](stage-01-scope-review.md) and
+[evaluation record](evaluations/stage01-2026-10-02/README.md) describe current
+evidence; issue #37 owns the pending full handoff evaluation.
 Scope: quality of seed-me itself. Downstream stages are out of scope for now.
 
 ## Two questions, kept apart

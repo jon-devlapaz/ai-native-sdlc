@@ -1,5 +1,14 @@
 # Chain contract (DRAFT r0 — 2026-09-28)
 
+Review disposition (2026-10-02, issue #36): this is a historical proposal, not
+current runtime policy. The [scope review](stage-01-scope-review.md) records the
+source comparison and the owner's decision to keep current guidance. Seed Me
+already supports provisional checks; the seed contract is sufficient for intake,
+without a mandatory downstream ledger. Required validation providers and probe
+changes are deferred. Advisory semantic findings do not override existing human
+approval or mechanical verification gates. The older decisions below remain
+visible as history; they do not authorize new implementation.
+
 Note (2026-09-28): the artifact seed-me saves is now called the **seed contract** (`seed-contract.md`); older text and files may still say "pre-intent".
 
 Status: **draft for the operator's review. Nothing here is implemented or approved.**
