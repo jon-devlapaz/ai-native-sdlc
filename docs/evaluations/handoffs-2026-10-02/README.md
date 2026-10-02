@@ -16,4 +16,10 @@ Original response pilot and calibration remain in `../stage01-2026-10-02/` uncha
 
 Future work should start from these results and change only what a reproduced
 failure warrants. Do not repeat model runs or ship this candidate by default.
-Issue 1 and the owner-paused issue 34 await their separate dispositions.
+## Final disposition
+
+The owner instructed: “Kill it and let’s get to all issues closed please.”
+Issue 34 is stopped at its Stage 1 gate; it was not implemented or verified.
+Issue 1 closes without shipping the candidate wording. Main templates remain
+unchanged. Both close as not planned; the candidate and all evaluation evidence
+remain available for future work. No additional model calls are authorized here.
