@@ -1,10 +1,10 @@
 # Remaining-issue work
 
-Status: prepared; larger model run awaits its agreed scope review. The owner has
+Status: prepared; tight nine-call run awaits its agreed scope review. The owner has
 asked to reach zero issues, not to claim incomplete work passed.
 
 - [Exact evaluation plan and limits](plan.md)
-- [Frozen requests, project context and expectations](cases.json)
+- [Four requests, project context and expectations](cases.json)
 - [Provider settings](settings.json)
 - [Three-session runner](run.mjs)
 - [Six-file template proposal](template-proposal.patch) — not applied

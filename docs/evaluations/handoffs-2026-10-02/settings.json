@@ -48,7 +48,7 @@
       "codex_path_override": "/opt/homebrew/bin/codex"
     }
   },
-  "maxCalls": 48,
+  "maxCalls": 9,
   "timeoutMs": 120000,
   "minimumRemainingPercent": 20,
   "variantSamples": 1
