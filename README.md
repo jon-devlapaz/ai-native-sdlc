@@ -47,13 +47,19 @@ A release still needs CI for the actual merge revision and independent forge app
 
 `assets/` is the canonical distributable scaffold in this repository. Do not update
 it from an external sandbox generator. After an intentional payload change, choose
-a release version and refresh the content manifest:
+a new numeric `X.Y.Z` version greater than `assets/manifest.json`'s current version
+and refresh the content manifest. Set `RELEASE_VERSION` to that chosen version:
 
 ```sh
-python3 scripts/package.py --version 1.0.1
+python3 scripts/package.py --version "${RELEASE_VERSION:?Set RELEASE_VERSION to the chosen X.Y.Z release version}"
 python3 scripts/package.py --check
 python3 -m unittest discover -s tests -p 'test_sdlc_*.py' -v
 ```
+
+The package tool refuses malformed versions and downgrades without changing the
+manifest. Running it without `--version` refreshes hashes at the current version;
+use a new version when publishing changed payloads. CI checks Python 3.9, 3.11,
+and 3.14.
 
 The manifest records payload content hashes, not publisher authenticity. Tests use
 isolated temporary repositories and synthetic review fixtures, never real approvals.

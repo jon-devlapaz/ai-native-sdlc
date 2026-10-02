@@ -4,8 +4,15 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 
 ASSETS = Path(__file__).resolve().parents[1] / 'assets'
+
+
+def parse_version(text):
+    if not isinstance(text, str) or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', text):
+        raise ValueError(f'Invalid package version {text!r}; expected numeric X.Y.Z.')
+    return tuple(int(part) for part in text.split('.'))
 
 
 def main():
@@ -15,6 +22,14 @@ def main():
     args = parser.parse_args()
     manifest_path = ASSETS / 'manifest.json'
     old = json.loads(manifest_path.read_text())
+    version = old.get('version') if args.version is None else args.version
+    try:
+        current = parse_version(old.get('version'))
+        requested = parse_version(version)
+    except ValueError as error:
+        parser.error(str(error))
+    if requested < current:
+        parser.error(f"Downgrade refused: manifest is {old['version']}; requested {version}.")
     files = {}
     for path in sorted(ASSETS.rglob('*')):
         if path.is_symlink():
@@ -24,7 +39,7 @@ def main():
         files[str(path.relative_to(ASSETS))] = hashlib.sha256(path.read_bytes()).hexdigest()
     owned = sorted(name for name in files if name == '_system/verification.json'
                    or (name.startswith('.tink/skillsets/') and name.count('/') == 2 and name.endswith('.json')))
-    manifest = {'version': args.version or old['version'], 'files': files, 'projectOwned': owned}
+    manifest = {'version': version, 'files': files, 'projectOwned': owned}
     if args.check:
         if manifest != old:
             parser.exit(1, 'Manifest does not match package contents. Update it for the release.\n')

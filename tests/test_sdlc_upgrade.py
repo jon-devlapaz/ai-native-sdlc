@@ -29,6 +29,11 @@ def make_package(dest, version, edits=None, init_edit=None):
     ignore = shutil.ignore_patterns('__pycache__', '*.pyc')
     shutil.copytree(ROOT / 'scripts', dest / 'scripts', ignore=ignore)
     shutil.copytree(ROOT / 'assets', dest / 'assets', ignore=ignore)
+    # Synthetic old releases start from their own baseline, not the current release version.
+    manifest_path = dest / 'assets/manifest.json'
+    manifest = json.loads(manifest_path.read_text())
+    manifest['version'] = version
+    manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
     for name, content in (edits or {}).items():
         path = dest / 'assets' / name
         if content is None:
