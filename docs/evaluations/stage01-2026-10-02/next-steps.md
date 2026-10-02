@@ -25,6 +25,21 @@ only when the owner actually supplies them. Then reassess all twelve saved answe
 under a separately versioned rubric; retain the original judgments unchanged.
 Reassessment needs no new writer answers and is not independent confirmation.
 
+### Saved-answer reassessment completed
+
+The [researcher reassessment](saved-answer-reassessment.json) records all twelve
+unchanged answers by their original result ID and content hash. It applies the
+clarifications above: control 4/4, short 4/4, long 3/4. The remaining long/sort
+failure is the unsupported requester name, not merely the inspected-fact label.
+The build answers do not block the authorized next inspection, so their later
+questions alone do not fail the clarified permission rule.
+
+These criteria were clarified after seeing the outputs. The current researcher
+has seen the candidates and answers; this is not independent evidence, human
+calibration, or a new model trial. All owner-label fields remain unset. Original
+scores and the frozen archive are unchanged. The result still provides no reason
+to add either instruction; use it to improve grading before evaluating handoffs.
+
 ## Then: evaluate the actual handoff
 
 Use the existing promptfoo setup and the unchanged source revision first. Cover
