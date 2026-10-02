@@ -21,8 +21,8 @@ At most **nine provider turns**, no repetitions or automatic retries:
    version versus owner compatibility policy, and a proposed production experiment
    lacking permission. Run candidate first, then unchanged baseline from its pinned
    snapshot: one Claude Sonnet writer and one gpt-6-luna consumer each (four calls).
-5. One fresh gpt-6.1-sol reviewer compares the two handoffs with variant labels
-   concealed and checks an injected defective plan. The current researcher also
+5. One fresh gpt-6.1-sol reviewer checks all five handoffs, compares the two new
+   handoffs with variant labels concealed, and checks injected defective plans. The current researcher also
    reads all outputs and records any disagreement; this is not an owner label.
 
 The new case's outputs are held out until the candidate is frozen. Its definition
