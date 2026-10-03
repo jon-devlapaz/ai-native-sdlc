@@ -244,10 +244,29 @@ class ProtocolTests(unittest.TestCase):
         metadata.write_text(json.dumps(original))
         self.assertEqual(self.view()['meta']['kind'], 'feature')
 
+    def test_malformed_historical_decisions_do_not_hide_healthy_runs(self):
+        self.create_ready()
+        self.cli('new', 'healthy')
+        self.approve('3')
+        receipt = sorted((self.root / 'runs/example/decisions').glob('*.json'))[0]
+        original = json.loads(receipt.read_text())
+        malformed = [*({field: value} for field in ('reviewer', 'source', 'reason')
+                       for value in (False, 17, [], {})),
+                     *({'decision': value} for value in (None, True, [], 'pending', 'stale', 'new-state'))]
+        for fields in malformed:
+            with self.subTest(decision=fields):
+                receipt.write_text(json.dumps({**original, **fields}))
+                self.assert_invalid_run_is_isolated()
+        receipt.write_text(json.dumps({**original, 'reviewer': None, 'source': None, 'reason': None,
+                                       'future-field': {'extra': True}}))
+        projected = self.view()['decisions'][0]
+        self.assertEqual(projected['decision'], 'approved')
+        self.assertIsNone(projected['reviewer'])
+
     def test_deep_json_is_isolated_with_a_structured_error(self):
         self.cli('new', 'example')
         self.cli('new', 'healthy')
-        (self.root / 'runs/example/run.json').write_text('[' * 2000 + '0' + ']' * 2000)
+        (self.root / 'runs/example/run.json').write_text('[' * 20000 + '0' + ']' * 20000)
         self.assert_invalid_run_is_isolated()
 
     def test_looping_evidence_symlink_is_isolated_across_python_versions(self):

@@ -166,7 +166,10 @@ majors must fail closed, never fall back to parsing the human CLI.
   or null when blocked. These are UI hints, not authorization: `verify <run>` and
   `mark <run> <item> passed|failed --evidence <text>` recheck their own rules.
 - `artifacts` (named text), `decisions` (normalized stage, nanosecond timestamp,
-  decision, reviewer, source, reason, and opaque id), `verification_config`
+  decision, reviewer, source, reason, and opaque id). Decision values are `approved`
+  or `changes-requested`; reviewer, source, and reason are strings or null when
+  historical metadata is absent. Known malformed fields invalidate that run rather
+  than being coerced into display text. Also included: `verification_config`
   (display-only checks/policy or null), `errors`, `next_action`, and `cli_status`
   (display-only human output). Human and machine status share one calculation.
 - `log`: `path` (checkout-relative, regular UTF-8 file), `text` (last 256 KiB,

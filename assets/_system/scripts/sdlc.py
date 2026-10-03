@@ -715,6 +715,11 @@ def run_view(slug):
         if not identity:
             raise ValueError(f'Unrecognized decision receipt name: {file.name}')
         record = read_json(file)
+        if not isinstance(record, dict) or record.get('decision') not in ('approved', 'changes-requested'):
+            raise ValueError(f'Unrecognized decision receipt: {file.name}')
+        for key in ('reviewer', 'source', 'reason'):
+            if record.get(key) is not None and not isinstance(record[key], str):
+                raise ValueError(f'Decision {key} must be a string or null: {file.name}')
         decisions.append({'id': file.stem, 'stage': int(identity[1]), 'timestamp_ns': int(identity[2]),
                           **{key: record.get(key) for key in ('decision', 'reviewer', 'source', 'reason')}})
     view['decisions'] = decisions
