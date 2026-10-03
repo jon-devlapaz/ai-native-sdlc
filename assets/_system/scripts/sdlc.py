@@ -589,6 +589,8 @@ def status_state(path):
     meta = require_run(path)
     if not isinstance(meta, dict) or meta.get('profile') not in ('light', 'full'):
         raise ValueError('Run profile must be light or full.')
+    if not isinstance(meta.get('kind', 'feature'), str):
+        raise ValueError('Run kind must be a string.')
     gates, blocked = [], False
     for stage in stages(path):
         state = gate(path, stage)
@@ -598,8 +600,16 @@ def status_state(path):
         blocked = blocked or state != 'approved'
     record_path, _ = verification_files(path)
     record = read_json(record_path) if record_path.exists() else None
-    if record is not None and (not isinstance(record, dict) or record.get('result') not in ('passed', 'failed', 'running')):
-        raise ValueError('Unrecognized verification receipt.')
+    if record is not None:
+        if not isinstance(record, dict) or record.get('result') not in ('passed', 'failed', 'running'):
+            raise ValueError('Unrecognized verification receipt.')
+        for key in ('error', 'log'):
+            if record.get(key) is not None and not isinstance(record[key], str):
+                raise ValueError(f'Verification {key} must be a string or null.')
+        identity = record.get('candidate')
+        if identity is not None and (not isinstance(identity, dict) or not all(
+                isinstance(identity.get(key), str) and identity[key] for key in ('head', 'tree'))):
+            raise ValueError('Verification candidate must contain nonempty head and tree strings.')
     active = writer_active(path)
     verified = False
     if not blocked and not active and record is not None:
@@ -678,7 +688,7 @@ def status_text(view):
 
 
 def regular_evidence(path):
-    if path.resolve() != path.absolute():
+    if path.is_symlink() or path.resolve() != path.absolute():
         raise ValueError(f'Symlinked evidence is not supported: {path.relative_to(ROOT)}')
     if path.exists() and not path.is_file():
         raise ValueError(f'Evidence must be a regular file: {path.relative_to(ROOT)}')
@@ -752,7 +762,7 @@ def status(args):
                          'next_action': view['next_action'], 'has_lock': view['has_lock'],
                          'checklist_summary': {'total': len(view['checklist']),
                                                'passed': sum(i['status'] == 'passed' for i in view['checklist'])}})
-        except (ValueError, OSError, KeyError, TypeError, AttributeError, subprocess.SubprocessError) as error:
+        except (ValueError, OSError, KeyError, TypeError, AttributeError, RuntimeError, subprocess.SubprocessError) as error:
             runs.append({'slug': name, 'verification_status': 'invalid', 'error': str(error),
                          'checklist_summary': {'total': 0, 'passed': 0}})
     machine_output({'runs': runs})
@@ -1489,7 +1499,7 @@ def main():
     args = parser.parse_args()
     try:
         {'new': create, 'status': status, 'capabilities': capabilities, 'decide': decide, 'verify': verify, 'mark': mark, 'lock-tests': lock_tests, 'skills': skills, 'stage': stage, 'walk': walk}[args.command](args)
-    except (ValueError, OSError, KeyError, TypeError, AttributeError, subprocess.SubprocessError) as error:
+    except (ValueError, OSError, KeyError, TypeError, AttributeError, RuntimeError, subprocess.SubprocessError) as error:
         if args.command in ('status', 'capabilities') and args.json:
             machine_output({'error': {'code': 'not-found' if isinstance(error, FileNotFoundError) else 'invalid-state',
                                       'message': describe(error)}})

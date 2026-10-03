@@ -206,6 +206,58 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(listed['verification_status'], 'invalid')
         self.assertTrue(listed['error'])
 
+    def assert_invalid_run_is_isolated(self):
+        detail = self.machine('status', 'example', ok=False)
+        self.assertEqual(detail['error']['code'], 'invalid-state')
+        listed = {run['slug']: run for run in self.machine('status')['runs']}
+        self.assertEqual(set(listed), {'example', 'healthy'})
+        self.assertEqual(listed['example']['verification_status'], 'invalid')
+        self.assertTrue(listed['example']['error'])
+        self.assertEqual(listed['healthy']['verification_status'], 'blocked')
+        self.assertEqual(listed['healthy']['kind'], 'feature')
+
+    def test_malformed_metadata_and_receipt_fields_do_not_hide_healthy_runs(self):
+        self.cli('new', 'example')
+        self.cli('new', 'healthy')
+        metadata = self.root / 'runs/example/run.json'
+        original = json.loads(metadata.read_text())
+        for kind in (None, True, 17, [], {}):
+            with self.subTest(kind=kind):
+                metadata.write_text(json.dumps({**original, 'kind': kind}))
+                self.assert_invalid_run_is_isolated()
+        metadata.write_text(json.dumps(original))
+        receipt = self.root / 'runs/example/04-test/output/verification.json'
+        receipt.parent.mkdir(parents=True)
+        malformed = [
+            *({field: value} for field in ('error', 'log') for value in (False, 17, [], {})),
+            *({'candidate': value} for value in (False, 17, 'invalid', [], {},
+                                                {'head': 17, 'tree': 'tree'},
+                                                {'head': '', 'tree': 'tree'}, {'head': 'commit'})),
+        ]
+        for fields in malformed:
+            with self.subTest(receipt=fields):
+                receipt.write_text(json.dumps({'result': 'failed', **fields}))
+                self.assert_invalid_run_is_isolated()
+        receipt.write_text(json.dumps({'result': 'failed', 'error': 'Readable failure'}))
+        self.assertEqual(self.view()['verification']['error'], 'Readable failure')
+        del original['kind']
+        metadata.write_text(json.dumps(original))
+        self.assertEqual(self.view()['meta']['kind'], 'feature')
+
+    def test_deep_json_is_isolated_with_a_structured_error(self):
+        self.cli('new', 'example')
+        self.cli('new', 'healthy')
+        (self.root / 'runs/example/run.json').write_text('[' * 2000 + '0' + ']' * 2000)
+        self.assert_invalid_run_is_isolated()
+
+    def test_looping_evidence_symlink_is_isolated_across_python_versions(self):
+        self.cli('new', 'example')
+        self.cli('new', 'healthy')
+        brief = self.root / 'runs/example/brief.md'
+        brief.unlink()
+        brief.symlink_to(brief.name)
+        self.assert_invalid_run_is_isolated()
+
     def test_large_log_tail_is_bounded_and_explicit(self):
         self.create_ready()
         log = self.root / 'runs/example/04-test/output/test-log.md'
